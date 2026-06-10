@@ -176,7 +176,7 @@ export default function TenantsPage() {
                 </tr>
               </thead>
               <tbody>
-                {data?.data?.map((tenant) => (
+                {data?.data?.map((tenant : any) => (
                   <TenantRow
                     key={tenant.id}
                     tenant={tenant}

@@ -1,4 +1,4 @@
-import { ApiResponse, User } from '@/src/types';
+import { ApiResponse, User } from '@/types';
 import { apiClient } from './client'
 
 export const authApi = {

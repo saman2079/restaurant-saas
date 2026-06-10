@@ -2,6 +2,7 @@ export declare const authService: {
     login(email: string, password: string): Promise<{
         token: string;
         user: {
+            tenantSlug: string;
             id: string;
             tenantId: string;
             name: string;

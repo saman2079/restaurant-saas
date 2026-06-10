@@ -18,10 +18,17 @@ exports.authService = {
         if (!isValid) {
             throw new Error('ایمیل یا رمز عبور اشتباه است');
         }
-        // آپدیت lastLoginAt
         await database_1.db.update(schema_1.users)
             .set({ lastLoginAt: new Date() })
             .where((0, drizzle_orm_1.eq)(schema_1.users.id, user.id));
+        let tenantSlug = null;
+        if (user.tenantId) {
+            const [tenant] = await database_1.db
+                .select({ slug: schema_1.tenants.slug })
+                .from(schema_1.tenants)
+                .where((0, drizzle_orm_1.eq)(schema_1.tenants.id, user.tenantId));
+            tenantSlug = tenant?.slug ?? null;
+        }
         const token = (0, jwt_1.signToken)({
             userId: user.id,
             tenantId: user.tenantId,
@@ -29,10 +36,9 @@ exports.authService = {
             email: user.email,
         });
         const { password: _, ...userWithoutPassword } = user;
-        return { token, user: userWithoutPassword };
+        return { token, user: { ...userWithoutPassword, tenantSlug } };
     },
     async logout(token) {
-        // توکن رو blacklist کن تا expire بشه
         await redis_1.redis.setex(`blacklist:${token}`, 7 * 24 * 60 * 60, '1');
     },
     async getMe(userId) {

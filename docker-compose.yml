@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -45,24 +43,18 @@ services:
     restart: unless-stopped
     ports:
       - "4000:4000"
-
     environment:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD}@postgres:5432/restaurant_db
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
-
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL}
-
-      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
-      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
-      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
-
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL}
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
-
       NODE_ENV: development
-
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -90,6 +82,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  uploads_data:
 
 networks:
   app-network:

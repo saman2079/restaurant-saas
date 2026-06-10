@@ -19,6 +19,10 @@ import menuRoutes from './modules/menu/menu.routes';
 import orderRoutes from './modules/orders/order.routes';
 import aiRoutes from './modules/ai/ai.routes';
 import { setupSwagger } from './config/swagger';
+import path from 'path';
+import uploadRoutes from './modules/upload/upload.routes';
+
+
 
 
 
@@ -43,12 +47,22 @@ io.on('connection', (socket) => {
 });
 
 // ─── Middlewares ─────────────────────────────────────────
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: {
+      policy: "cross-origin",
+    },
+  })
+);
 app.use(cors({ origin: '*', credentials: true }));
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-
+app.use(
+  '/uploads',
+  express.static(path.join(process.cwd(), 'uploads'))
+);
+app.use('/api/upload', uploadRoutes);
 // ─── Routes ──────────────────────────────────────────────
 app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: new Date() }));
 

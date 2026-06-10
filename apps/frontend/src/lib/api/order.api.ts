@@ -1,4 +1,4 @@
-import { ApiResponse, Order } from '@/src/types';
+import { ApiResponse, Order } from '@/types';
 import { apiClient } from './client'
 
 export const orderApi = {
