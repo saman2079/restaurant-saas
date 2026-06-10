@@ -2,13 +2,13 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Input } from '@/src/components/ui/input'
-import { ErrorBoundary } from '@/src/components/ui/error-boundary'
-import { Tenant } from '@/src/types'
+import { Input } from '@/components/ui/input'
+import { Tenant } from '@/types'
 import toast from 'react-hot-toast'
-import { tenantApi } from '@/src/lib/api/tenant.api'
-import { Button } from '@/src/components/ui/button'
-import { formatDate } from '@/src/lib/utils'
+import { tenantApi } from '@/lib/api/tenant.api'
+import { Button } from '@/components/ui/button'
+import { formatDate } from '@/lib/utils'
+import { AppErrorBoundary } from '@/components/ui/error-boundary'
 
 function PlanBadge({ plan }: { plan: string }) {
   const styles: Record<string, string> = {
@@ -143,7 +143,7 @@ export default function TenantsPage() {
   console.log(data)
 
   return (
-    <ErrorBoundary>
+    <AppErrorBoundary>
       <div className="p-6">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-lg font-medium text-gray-900">رستوران‌ها</h1>
@@ -190,6 +190,6 @@ export default function TenantsPage() {
       </div>
 
       {showCreate && <CreateTenantModal onClose={() => setShowCreate(false)} />}
-    </ErrorBoundary>
+    </AppErrorBoundary>
   )
 }

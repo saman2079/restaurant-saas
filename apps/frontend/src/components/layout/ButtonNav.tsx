@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { useCartStore } from "@/src/store/cart-store";
+import { useCartStore } from "@/store/cart-store";
 
 export default function ButtonNav({slug} : {slug : string}) {
   const pathname = usePathname();

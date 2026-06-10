@@ -1,6 +1,6 @@
 
 // import SessionInitializer from "@/components/menu/SessionInitializer";
-import ButtonNav from "@/src/components/layout/ButtonNav";
+import ButtonNav from "@/components/layout/ButtonNav";
 import { Suspense } from "react";
 
 export default async function MainLayout({

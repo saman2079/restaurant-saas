@@ -1,4 +1,4 @@
-import ChatClient from '@/src/components/ai/ChatClient'
+import ChatClient from '@/components/ai/ChatClient'
 import React from 'react'
 
 async function page({

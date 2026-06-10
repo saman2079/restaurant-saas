@@ -1,5 +1,5 @@
-import { SuperAdminGuard } from "@/src/components/layout/super-admin-guard";
-import { SuperAdminSidebar } from "@/src/components/layout/super-admin-sidebar";
+import { SuperAdminGuard } from "@/components/layout/super-admin-guard";
+import { SuperAdminSidebar } from "@/components/layout/super-admin-sidebar";
 
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {

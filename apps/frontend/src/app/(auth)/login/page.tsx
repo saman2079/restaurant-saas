@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuthStore } from '@/src/lib/api/auth.store'
-import { authApi } from '@/src/lib/api/auth.api'
-import { Input } from '@/src/components/ui/input'
-import { Button } from '@/src/components/ui/button'
+import { authApi } from '@/lib/api/auth.api'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { useAuthStore } from '@/lib/store/auth.store'
 
 
 export default function LoginPage() {
@@ -29,7 +29,7 @@ export default function LoginPage() {
         router.push('/super-admin/tenants')
       } else {
         // tenant id از user میگیریم - slug رو باید از جای دیگه بگیریم
-        router.push('/admin')
+        router.push(`/${user.tenantSlug}/admin`)
       }
     } catch (err: any) {
       setError(err.response?.data?.message ?? 'خطا در ورود')

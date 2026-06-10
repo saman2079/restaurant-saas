@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuthStore } from '@/src/lib/api/auth.store'
+import { useAuthStore } from '@/lib/api/auth.store'
 
 export function SuperAdminGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter()

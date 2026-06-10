@@ -1,8 +1,8 @@
 'use client'
 
-import { authApi } from '@/src/lib/api/auth.api'
-import { useAuthStore } from '@/src/lib/api/auth.store'
-import { cn } from '@/src/lib/utils'
+import { authApi } from '@/lib/api/auth.api'
+import { useAuthStore } from '@/lib/api/auth.store'
+import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 
