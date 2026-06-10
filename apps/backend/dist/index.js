@@ -20,7 +20,9 @@ const tenant_routes_1 = __importDefault(require("./modules/tenants/tenant.routes
 const menu_routes_1 = __importDefault(require("./modules/menu/menu.routes"));
 const order_routes_1 = __importDefault(require("./modules/orders/order.routes"));
 const ai_routes_1 = __importDefault(require("./modules/ai/ai.routes"));
+const swagger_1 = require("./config/swagger");
 const app = (0, express_1.default)();
+(0, swagger_1.setupSwagger)(app);
 const httpServer = (0, http_1.createServer)(app);
 // ─── Socket.IO ───────────────────────────────────────────
 const io = new socket_io_1.Server(httpServer, {
@@ -54,7 +56,12 @@ app.use(error_middleware_1.errorHandler);
 // ─── Start ───────────────────────────────────────────────
 async function bootstrap() {
     await (0, database_1.connectDB)();
-    await auth_service_1.authService.createSuperAdmin();
+    try {
+        await auth_service_1.authService.createSuperAdmin();
+    }
+    catch (e) {
+        console.error('⚠️ createSuperAdmin خطا:', e.message);
+    }
     httpServer.listen(env_1.env.PORT, () => {
         console.log(`🚀 سرور روی پورت ${env_1.env.PORT} اجرا شد`);
         console.log(`📍 محیط: ${env_1.env.NODE_ENV}`);

@@ -5,7 +5,8 @@ export declare const env: {
     REDIS_URL: string;
     JWT_SECRET: string;
     JWT_EXPIRES_IN: string;
-    ANTHROPIC_API_KEY: string;
+    OPENAI_API_KEY: string;
+    OPENAI_BASE_URL: string;
     CLOUDINARY_CLOUD_NAME: string;
     CLOUDINARY_API_KEY: string;
     CLOUDINARY_API_SECRET: string;

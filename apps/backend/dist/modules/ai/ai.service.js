@@ -4,13 +4,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.aiService = void 0;
-const sdk_1 = __importDefault(require("@anthropic-ai/sdk"));
+const openai_1 = __importDefault(require("openai"));
 const env_1 = require("../../config/env");
 const database_1 = require("../../config/database");
 const schema_1 = require("../../db/schema");
 const drizzle_orm_1 = require("drizzle-orm");
 const redis_1 = require("../../config/redis");
-const anthropic = new sdk_1.default({ apiKey: env_1.env.ANTHROPIC_API_KEY });
+const openai = new openai_1.default({
+    apiKey: env_1.env.OPENAI_API_KEY,
+    baseURL: env_1.env.OPENAI_BASE_URL,
+});
 exports.aiService = {
     async chat(tenantId, sessionId, userMessage) {
         // گرفتن یا ساختن conversation
@@ -50,14 +53,21 @@ ${popularItems}
 
 به فارسی صحبت کن. صمیمی و خوش‌برخورد باش.`;
         messages.push({ role: 'user', content: userMessage });
-        const response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-20250514',
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o',
             max_tokens: 1024,
-            system: systemPrompt,
-            messages: messages.map(m => ({ role: m.role, content: m.content })),
+            messages: [
+                {
+                    role: 'system',
+                    content: systemPrompt,
+                },
+                ...messages.map(m => ({
+                    role: m.role,
+                    content: m.content,
+                })),
+            ],
         });
-        const assistantMessage = response.content[0].type === 'text'
-            ? response.content[0].text : '';
+        const assistantMessage = response.choices[0]?.message?.content || '';
         messages.push({ role: 'assistant', content: assistantMessage });
         // ذخیره conversation
         if (conversation) {
@@ -90,16 +100,24 @@ ${popularItems}
     async analyzeForAdmin(tenantId, question) {
         // گرفتن آمار برای تحلیل
         const analyticsData = await this.getAnalyticsContext(tenantId);
-        const response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-20250514',
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o',
             max_tokens: 1500,
-            system: `تو یک مشاور کسب‌وکار هوشمند برای رستوران‌ها هستی.
+            messages: [
+                {
+                    role: 'system',
+                    content: `تو یک مشاور کسب‌وکار هوشمند برای رستوران‌ها هستی.
 داده‌های رستوران:
 ${analyticsData}
 تحلیل دقیق و عملی بده. به فارسی پاسخ بده.`,
-            messages: [{ role: 'user', content: question }],
+                },
+                {
+                    role: 'user',
+                    content: question,
+                },
+            ],
         });
-        return response.content[0].type === 'text' ? response.content[0].text : '';
+        return response.choices[0]?.message?.content || '';
     },
     async getMenuContext(tenantId) {
         const cacheKey = `ai:menu:${tenantId}`;

@@ -5,10 +5,14 @@ import { requireSuperAdmin, requireOwner } from '../../middlewares/role.middlewa
 
 const router = Router();
 
+router.get('/public/:slug', tenantController.getBySlug);
+
 // سوپر ادمین
 router.get('/', authenticate, requireSuperAdmin, tenantController.getAll);
 router.post('/', authenticate, requireSuperAdmin, tenantController.create);
 router.patch('/:id/toggle', authenticate, requireSuperAdmin, tenantController.toggleActive);
+router.patch('/:id', authenticate, requireOwner, tenantController.update);
+
 
 // عمومی (برای لود اطلاعات رستوران)
 router.get('/:slug', tenantController.getBySlug);

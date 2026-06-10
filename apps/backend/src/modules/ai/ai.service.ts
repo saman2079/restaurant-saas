@@ -1,11 +1,14 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { env } from '../../config/env';
 import { db } from '../../config/database';
 import { menuItems, categories, orders, aiConversations } from '../../db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { redis } from '../../config/redis';
 
-const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const openai = new OpenAI({
+  apiKey: env.OPENAI_API_KEY,
+  baseURL: env.OPENAI_BASE_URL,
+});
 
 export const aiService = {
   async chat(tenantId: string, sessionId: string, userMessage: string) {
@@ -16,15 +19,15 @@ export const aiService = {
         eq(aiConversations.sessionId, sessionId)
       ),
     });
-    
+
     const messages: any[] = conversation?.messages as any[] || [];
-    
+
     // گرفتن منوی رستوران برای context
     const [menuContext, popularItems] = await Promise.all([
       this.getMenuContext(tenantId),
       this.getPopularItems(tenantId),
     ]);
-    
+
     const systemPrompt = `تو یک دستیار هوشمند رستوران هستی. اسم رستوران در سیستم ثبت شده.
 
 منوی کامل رستوران:
@@ -53,19 +56,27 @@ ${popularItems}
 به فارسی صحبت کن. صمیمی و خوش‌برخورد باش.`;
 
     messages.push({ role: 'user', content: userMessage });
-    
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
       max_tokens: 1024,
-      system: systemPrompt,
-      messages: messages.map(m => ({ role: m.role, content: m.content })),
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
+        },
+        ...messages.map(m => ({
+          role: m.role,
+          content: m.content,
+        })),
+      ],
     });
-    
-    const assistantMessage = response.content[0].type === 'text' 
-      ? response.content[0].text : '';
-    
+
+    const assistantMessage =
+      response.choices[0]?.message?.content || '';
+
     messages.push({ role: 'assistant', content: assistantMessage });
-    
+
     // ذخیره conversation
     if (conversation) {
       await db.update(aiConversations)
@@ -78,45 +89,53 @@ ${popularItems}
         messages,
       }).returning())[0];
     }
-    
+
     // چک کن آیا سفارش آماده‌ست
     const orderMatch = assistantMessage.match(/```order\n([\s\S]*?)\n```/);
     let orderData = null;
     if (orderMatch) {
       try {
         orderData = JSON.parse(orderMatch[1]);
-      } catch {}
+      } catch { }
     }
-    
+
     return {
       message: assistantMessage.replace(/```order\n[\s\S]*?\n```/g, '').trim(),
       orderData,
       conversationId: conversation.id,
     };
   },
-  
+
   async analyzeForAdmin(tenantId: string, question: string) {
     // گرفتن آمار برای تحلیل
     const analyticsData = await this.getAnalyticsContext(tenantId);
-    
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
       max_tokens: 1500,
-      system: `تو یک مشاور کسب‌وکار هوشمند برای رستوران‌ها هستی.
+      messages: [
+        {
+          role: 'system',
+          content: `تو یک مشاور کسب‌وکار هوشمند برای رستوران‌ها هستی.
 داده‌های رستوران:
 ${analyticsData}
 تحلیل دقیق و عملی بده. به فارسی پاسخ بده.`,
-      messages: [{ role: 'user', content: question }],
+        },
+        {
+          role: 'user',
+          content: question,
+        },
+      ],
     });
-    
-    return response.content[0].type === 'text' ? response.content[0].text : '';
+
+    return response.choices[0]?.message?.content || '';
   },
-  
+
   async getMenuContext(tenantId: string): Promise<string> {
     const cacheKey = `ai:menu:${tenantId}`;
     const cached = await redis.get(cacheKey);
     if (cached) return cached;
-    
+
     const items = await db.select({
       id: menuItems.id,
       name: menuItems.name,
@@ -125,25 +144,25 @@ ${analyticsData}
       status: menuItems.status,
       categoryId: menuItems.categoryId,
     }).from(menuItems)
-    .where(and(eq(menuItems.tenantId, tenantId), eq(menuItems.status, 'available')));
-    
-    const context = items.map(i => 
+      .where(and(eq(menuItems.tenantId, tenantId), eq(menuItems.status, 'available')));
+
+    const context = items.map(i =>
       `- ${i.name} | ${i.price} تومان | ID: ${i.id}${i.description ? ` | ${i.description}` : ''}`
     ).join('\n');
-    
+
     await redis.setex(cacheKey, 300, context);
     return context;
   },
-  
+
   async getPopularItems(tenantId: string): Promise<string> {
     const items = await db.select()
       .from(menuItems)
       .where(and(eq(menuItems.tenantId, tenantId), eq(menuItems.isPopular, true)))
       .limit(5);
-    
+
     return items.map(i => `- ${i.name} (${i.totalOrders} سفارش)`).join('\n');
   },
-  
+
   async getAnalyticsContext(tenantId: string): Promise<string> {
     // اینجا میشه analytics data رو اضافه کرد
     return 'داده‌های فروش در دسترس است';

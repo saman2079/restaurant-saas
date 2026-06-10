@@ -18,8 +18,12 @@ import tenantRoutes from './modules/tenants/tenant.routes';
 import menuRoutes from './modules/menu/menu.routes';
 import orderRoutes from './modules/orders/order.routes';
 import aiRoutes from './modules/ai/ai.routes';
+import { setupSwagger } from './config/swagger';
+
+
 
 const app = express();
+setupSwagger(app);
 const httpServer = createServer(app);
 
 // ─── Socket.IO ───────────────────────────────────────────
