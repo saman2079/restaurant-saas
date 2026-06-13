@@ -3,12 +3,12 @@ import { apiClient } from './client'
 
 export const orderApi = {
   getAll: async (slug: string, params?: { status?: string; page?: number; limit?: number }) => {
-    const { data } = await apiClient.get<ApiResponse<Order[]>>(`/${slug}/orders`, { params })
+    const { data } = await apiClient.get<ApiResponse<Order[]>>(`api/${slug}/orders`, { params })
     return data.data
   },
 
   getById: async (slug: string, id: string) => {
-    const { data } = await apiClient.get<ApiResponse<Order>>(`/${slug}/orders/${id}`)
+    const { data } = await apiClient.get<ApiResponse<Order>>(`api/${slug}/orders/${id}`)
     return data.data
   },
 
@@ -18,13 +18,13 @@ export const orderApi = {
     notes?: string
     items: { menuItemId: string; quantity: number; notes?: string }[]
   }) => {
-    const { data } = await apiClient.post<ApiResponse<Order>>(`/${slug}/orders`, payload)
+    const { data } = await apiClient.post<ApiResponse<Order>>(`api/${slug}/orders`, payload)
     return data.data
   },
 
   updateStatus: async (slug: string, id: string, status: string) => {
     const { data } = await apiClient.patch<ApiResponse<Order>>(
-      `/${slug}/orders/${id}/status`,
+      `api/${slug}/orders/${id}/status`,
       { status }
     )
     return data.data

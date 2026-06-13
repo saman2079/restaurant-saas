@@ -260,12 +260,10 @@ export default function MenuPage() {
                 className="flex items-center justify-between bg-white rounded-xl border border-gray-100 px-4 py-3">
                 <div className="flex items-center gap-3 min-w-0">
                   {item.image ? (
-<Image
+<img
   src={item.image}
-  width={120}
-  height={120}
+
   alt={item.name}
-  unoptimized
   className="h-12 w-12 rounded-lg object-cover"
 />
                   ) : (

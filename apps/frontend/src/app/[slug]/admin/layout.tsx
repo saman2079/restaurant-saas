@@ -1,35 +1,65 @@
-'use client'
+"use client";
 
-import { useEffect } from 'react'
-import { useRouter, useParams, usePathname } from 'next/navigation'
-import Link from 'next/link'
-import { useAuthStore } from '@/lib/store/auth.store'
-import { cn } from '@/lib/utils'
+import { useEffect } from "react";
+import { useRouter, useParams, usePathname } from "next/navigation";
+import Link from "next/link";
+import { useAuthStore } from "@/lib/store/auth.store";
+import { cn } from "@/lib/utils";
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const { slug } = useParams<{ slug: string }>()
-  const { user, token, clearAuth } = useAuthStore()
+export default function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { slug } = useParams<{ slug: string }>();
+  const { user, token, clearAuth, _hasHydrated } = useAuthStore();
+
+  // useEffect(() => {
+  //   if (!token || !user) {
+  //     router.push("/login");
+  //     return;
+  //   }
+  //   const allowed = ["owner", "manager", "waiter", "chef", "super_admin"];
+  //   if (!allowed.includes(user.role)) router.push("/login");
+  // }, [token, user, router]);
+
+  // if (!user || !token) return null;
 
   useEffect(() => {
-    if (!token || !user) { router.push('/login'); return }
-    const allowed = ['owner', 'manager', 'waiter', 'chef', 'super_admin']
-    if (!allowed.includes(user.role)) router.push('/login')
-  }, [token, user, router])
+    if (!_hasHydrated) return;
 
-  if (!user || !token) return null
+    if (!token || !user) {
+      router.push("/login");
+      return;
+    }
+
+    const allowed = ["owner", "manager", "waiter", "chef", "super_admin"];
+
+    if (!allowed.includes(user.role)) {
+      router.push("/login");
+    }
+  }, [_hasHydrated, token, user, router]);
+
+  if (!_hasHydrated) {
+    return <div>Loading...</div>;
+  }
+
+  if (!user || !token) {
+    return null;
+  }
 
   const navItems = [
-    { href: `/${slug}/admin`, label: 'داشبورد', icon: '📊', exact: true },
-    { href: `/${slug}/admin/menu`, label: 'منو', icon: '🍽️' },
-    { href: `/${slug}/admin/orders`, label: 'سفارشات', icon: '📋' },
-    { href: `/${slug}/admin/staff`, label: 'کارمندان', icon: '👥' },
-    { href: `/${slug}/admin/analytics`, label: 'آمار', icon: '📈' },
-  ]
+    { href: `/${slug}/admin`, label: "داشبورد", icon: "📊", exact: true },
+    { href: `/${slug}/admin/menu`, label: "منو", icon: "🍽️" },
+    { href: `/${slug}/admin/orders`, label: "سفارشات", icon: "📋" },
+    { href: `/${slug}/admin/staff`, label: "کارمندان", icon: "👥" },
+    { href: `/${slug}/admin/analytics`, label: "آمار", icon: "📈" },
+  ];
 
   const isActive = (href: string, exact?: boolean) =>
-    exact ? pathname === href : pathname.startsWith(href)
+    exact ? pathname === href : pathname.startsWith(href);
 
   return (
     <div className="flex h-screen bg-gray-50" dir="rtl">
@@ -51,10 +81,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
+                "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
                 isActive(item.href, item.exact)
-                  ? 'bg-orange-50 text-orange-600 font-medium'
-                  : 'text-gray-600 hover:bg-gray-50'
+                  ? "bg-orange-50 text-orange-600 font-medium"
+                  : "text-gray-600 hover:bg-gray-50",
               )}
             >
               <span className="text-base">{item.icon}</span>
@@ -71,7 +101,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span>👁️</span> مشاهده منو
           </Link>
           <button
-            onClick={() => { clearAuth(); router.push('/login') }}
+            onClick={() => {
+              clearAuth();
+              router.push("/login");
+            }}
             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
           >
             <span>🚪</span> خروج
@@ -81,5 +114,5 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       <main className="flex-1 overflow-auto">{children}</main>
     </div>
-  )
+  );
 }

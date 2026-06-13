@@ -20,7 +20,7 @@ export const uploadController = {
 
       fs.writeFileSync(filepath, req.file.buffer);
 
-      const url = `${req.protocol}://${req.get("host")}/uploads/${filename}`;
+      const url = `/uploads/${filename}`;
       return sendSuccess(res, { url });
     } catch (e: any) {
       return sendError(res, e.message);
