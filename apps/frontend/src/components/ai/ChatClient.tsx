@@ -35,6 +35,8 @@ function ChatClient({ slug }: { slug: string }) {
   const [message, setMessage] =
     useState("");
 
+    // const [menuCards , setMenuCards] = useState([])
+
   const [messages, setMessages] =
     useState<Message[]>([]);
 
@@ -54,7 +56,7 @@ function ChatClient({ slug }: { slug: string }) {
     if (storedSessionId) {
 
       setSessionId(storedSessionId);
-      console.log(sessionId)
+      // console.log(sessionId)
 
     } else {
 
@@ -97,7 +99,7 @@ function ChatClient({ slug }: { slug: string }) {
       setMessage("");
 
       setLoading(true);
-      console.log(sessionId)
+      // console.log(sessionId)
 
       try {
 
@@ -116,7 +118,7 @@ function ChatClient({ slug }: { slug: string }) {
         );
 
         const data = await res.json();
-        console.log(data)
+        console.log(data.message)
 
         const aiMessage: Message = {
           role: "assistant",
@@ -124,7 +126,7 @@ function ChatClient({ slug }: { slug: string }) {
             data.data.message ||
             data.data.response ||
             "پاسخی دریافت نشد",
-          menuCards: data.menuCards || [],
+          menuCards: data.data.menuCards || [],
           addedItems: data.addedItems || [],
           orderSubmitted: data.orderSubmitted || false,
           orderId: data.orderId || null,
@@ -135,6 +137,11 @@ function ChatClient({ slug }: { slug: string }) {
           ...prev,
           aiMessage,
         ]);
+
+        // setMenuCards((perv) => [
+        //   ...perv,
+        //   aiMessage,
+        // ])
 
       } catch (error) {
 
@@ -160,6 +167,7 @@ function ChatClient({ slug }: { slug: string }) {
       messages,
       loading,
       sessionId,
+      // menuCards,
     ]
   );
 
@@ -172,6 +180,7 @@ function ChatClient({ slug }: { slug: string }) {
       <ChatMessages
         messages={messages}
         loading={loading}
+        // menuCards={menuCards}
       />
 
       <ChatInput

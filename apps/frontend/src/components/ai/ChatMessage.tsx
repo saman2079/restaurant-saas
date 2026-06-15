@@ -9,7 +9,7 @@ interface MenuCard {
   name: string;
   price: number;
   description: string;
-  images: string[];
+  image: string;
 }
 
 interface Props {
@@ -23,6 +23,8 @@ function ChatMessage({
   content,
   menuCards
 }: Props) {
+
+  console.log(menuCards)
 
   return (
     <div>
@@ -60,7 +62,8 @@ function ChatMessage({
             className="flex gap-5 bg-white p-2 rounded-[20px] shadow-[0px_8px_12px_0px_#0000001A]"
           >
             <Image
-              src={item.images[0]}
+              src={item.image}
+              unoptimized
               alt=""
               width={108}
               height={127}
