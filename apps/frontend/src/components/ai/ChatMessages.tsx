@@ -20,13 +20,11 @@ interface Message {
 interface Props {
   messages: Message[];
   loading: boolean;
-  menuCards:[]
 }
 
 function ChatMessages({
   messages,
   loading,
-  // menuCards
 }: Props) {
 
   const messagesEndRef =
