@@ -171,6 +171,7 @@ export const orders = pgTable(
       onDelete: "set null",
     }),
     tableNumber: integer("table_number"),
+    rejectionReason: text("rejection_reason"), // ← اضافه کن
     status: orderStatusEnum("status").default("pending").notNull(),
     totalAmount: decimal("total_amount", { precision: 12, scale: 0 }).notNull(),
     notes: text("notes"),

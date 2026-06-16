@@ -4,69 +4,99 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { createServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
+import path from 'path';
 
 import { env } from './config/env';
 import { connectDB } from './config/database';
-import { redis } from './config/redis';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import { authService } from './modules/auth/auth.service';
 import { setSocketIO } from './modules/orders/order.service';
+import { setupSwagger } from './config/swagger';
 
-// Routes
 import authRoutes from './modules/auth/auth.routes';
 import tenantRoutes from './modules/tenants/tenant.routes';
 import menuRoutes from './modules/menu/menu.routes';
 import orderRoutes from './modules/orders/order.routes';
 import aiRoutes from './modules/ai/ai.routes';
-import { setupSwagger } from './config/swagger';
-import path from 'path';
 import uploadRoutes from './modules/upload/upload.routes';
 
-
-
-
-
 const app = express();
-setupSwagger(app);
 const httpServer = createServer(app);
 
 // ─── Socket.IO ───────────────────────────────────────────
 const io = new SocketServer(httpServer, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
+  transports: ['websocket', 'polling'],
 });
 
 setSocketIO(io);
 
 io.on('connection', (socket) => {
-  socket.on('join-tenant', (tenantId: string) => {
-    socket.join(`tenant:${tenantId}`);
-  });
+  console.log('🔌 Socket متصل:', socket.id);
+
+  socket.on('join-tenant', async (tenantIdOrSlug: string) => {
+    // اگه UUID بود مستقیم join کن، اگه slug بود از دیتابیس بگیر
+    const isUUID = /^[0-9a-f-]{36}$/.test(tenantIdOrSlug)
+    
+    if (isUUID) {
+      socket.join(`tenant:${tenantIdOrSlug}`)
+      console.log(`✅ join-tenant (id): ${tenantIdOrSlug}`)
+    } else {
+      // slug هست، از Redis یا DB بگیر
+      try {
+        const { db } = await import('./config/database')
+        const { tenants } = await import('./db/schema')
+        const { eq } = await import('drizzle-orm')
+        const [tenant] = await db.select({ id: tenants.id })
+          .from(tenants)
+          .where(eq(tenants.slug, tenantIdOrSlug))
+        
+        if (tenant) {
+          socket.join(`tenant:${tenant.id}`)
+          console.log(`✅ join-tenant (slug→id): ${tenantIdOrSlug} → ${tenant.id}`)
+        }
+      } catch (e) {
+        console.error('join-tenant error:', e)
+      }
+    }
+  })
+
   socket.on('join-kitchen', (tenantId: string) => {
-    socket.join(`kitchen:${tenantId}`);
-  });
-});
+    socket.join(`kitchen:${tenantId}`)
+  })
+
+  socket.on('join-order', (orderId: string) => {
+    socket.join(`order:${orderId}`)
+    console.log(`✅ join-order: ${orderId}`)
+  })
+
+  socket.on('disconnect', () => {
+    console.log('❌ Socket قطع شد:', socket.id)
+  })
+})
 
 // ─── Middlewares ─────────────────────────────────────────
-app.use(
-  helmet({
-    crossOriginResourcePolicy: {
-      policy: "cross-origin",
-    },
-  })
-);
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({ origin: '*', credentials: true }));
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use(
-  '/uploads',
-  express.static(path.join(process.cwd(), 'uploads'))
-);
-app.use('/api/upload', uploadRoutes);
+
+// ─── Static Files ─────────────────────────────────────────
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(path.join(process.cwd(), 'uploads')));
+
+// ─── Swagger ──────────────────────────────────────────────
+setupSwagger(app);
+
 // ─── Routes ──────────────────────────────────────────────
 app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: new Date() }));
 
 app.use('/api/auth', authRoutes);
+app.use('/api/upload', uploadRoutes);
 app.use('/api/super/tenants', tenantRoutes);
 app.use('/api/:slug/menu', menuRoutes);
 app.use('/api/:slug/orders', orderRoutes);
@@ -91,6 +121,5 @@ async function bootstrap() {
     console.log(`📍 محیط: ${env.NODE_ENV}`);
   });
 }
-
 
 bootstrap().catch(console.error);
