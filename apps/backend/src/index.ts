@@ -20,6 +20,8 @@ import orderRoutes from './modules/orders/order.routes';
 import aiRoutes from './modules/ai/ai.routes';
 import uploadRoutes from './modules/upload/upload.routes';
 import staffRoutes from './modules/staff/staff.routes';
+import analyticsRoutes from './modules/analytics/analytics.routes';
+
 
 
 const app = express();
@@ -84,6 +86,8 @@ app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/:slug/staff', staffRoutes);
+app.use('/api/:slug/analytics', analyticsRoutes);
+
 
 
 // ─── Static Files ─────────────────────────────────────────

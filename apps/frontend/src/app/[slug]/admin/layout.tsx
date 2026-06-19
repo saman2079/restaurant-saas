@@ -6,64 +6,52 @@ import Link from "next/link";
 import { useAuthStore } from "@/lib/store/auth.store";
 import { cn } from "@/lib/utils";
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+const ALL_NAV_ITEMS = [
+  { href: `admin`, label: "داشبورد", icon: "📊", exact: true, roles: ['owner', 'manager', 'waiter', 'chef', 'super_admin'] },
+  { href: `admin/menu`, label: "منو", icon: "🍽️", roles: ['owner', 'manager'] },
+  { href: `admin/orders`, label: "سفارشات", icon: "📋", roles: ['owner', 'manager', 'waiter', 'chef'] },
+  { href: `admin/staff`, label: "کارمندان", icon: "👥", roles: ['owner'] },
+  { href: `admin/analytics`, label: "آمار", icon: "📈", roles: ['owner', 'manager'] },
+];
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { slug } = useParams<{ slug: string }>();
   const { user, token, clearAuth, _hasHydrated } = useAuthStore();
 
-  // useEffect(() => {
-  //   if (!token || !user) {
-  //     router.push("/login");
-  //     return;
-  //   }
-  //   const allowed = ["owner", "manager", "waiter", "chef", "super_admin"];
-  //   if (!allowed.includes(user.role)) router.push("/login");
-  // }, [token, user, router]);
-
-  // if (!user || !token) return null;
-
   useEffect(() => {
     if (!_hasHydrated) return;
-
-    if (!token || !user) {
-      router.push("/login");
-      return;
-    }
-
+    if (!token || !user) { router.push("/login"); return; }
     const allowed = ["owner", "manager", "waiter", "chef", "super_admin"];
-
-    if (!allowed.includes(user.role)) {
-      router.push("/login");
-    }
+    if (!allowed.includes(user.role)) router.push("/login");
   }, [_hasHydrated, token, user, router]);
 
-  if (!_hasHydrated) {
-    return <div>Loading...</div>;
-  }
+  if (!_hasHydrated) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+    </div>
+  );
 
-  if (!user || !token) {
-    return null;
-  }
+  if (!user || !token) return null;
 
-  const navItems = [
-    { href: `/${slug}/admin`, label: "داشبورد", icon: "📊", exact: true },
-    { href: `/${slug}/admin/menu`, label: "منو", icon: "🍽️" },
-    { href: `/${slug}/admin/orders`, label: "سفارشات", icon: "📋" },
-    { href: `/${slug}/admin/staff`, label: "کارمندان", icon: "👥" },
-    { href: `/${slug}/admin/analytics`, label: "آمار", icon: "📈" },
-  ];
+  const navItems = ALL_NAV_ITEMS
+    .filter(item => item.roles.includes(user.role))
+    .map(item => ({ ...item, href: `/${slug}/${item.href}` }));
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname.startsWith(href);
 
+  const roleLabels: Record<string, string> = {
+    owner: 'مالک',
+    manager: 'مدیر',
+    waiter: 'گارسون',
+    chef: 'آشپز',
+    super_admin: 'سوپر ادمین',
+  };
+
   return (
     <div className="flex h-screen bg-gray-50" dir="rtl">
-      {/* Sidebar */}
       <aside className="flex h-screen w-56 flex-col border-l border-gray-100 bg-white">
         <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-4">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500 text-sm">
@@ -71,7 +59,7 @@ export default function AdminLayout({
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-gray-900">{slug}</p>
-            <p className="text-xs text-gray-400">{user.role}</p>
+            <p className="text-xs text-gray-400">{roleLabels[user.role] || user.role}</p>
           </div>
         </div>
 
@@ -101,10 +89,7 @@ export default function AdminLayout({
             <span>👁️</span> مشاهده منو
           </Link>
           <button
-            onClick={() => {
-              clearAuth();
-              router.push("/login");
-            }}
+            onClick={() => { clearAuth(); router.push("/login"); }}
             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
           >
             <span>🚪</span> خروج
