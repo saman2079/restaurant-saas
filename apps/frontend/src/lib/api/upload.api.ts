@@ -6,13 +6,13 @@ export const uploadApi = {
     formData.append('image', file)
 
     const { data } = await apiClient.post<{ success: boolean; data: { url: string } }>(
-      'api/upload',
+      '/upload',
       formData,
       { headers: { 'Content-Type': 'multipart/form-data' } }
     )
 
     // url کامل برگردون
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:4000'
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:4000/api'
     return `${baseUrl}${data.data.url}`
   },
 }

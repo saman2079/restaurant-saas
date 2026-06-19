@@ -41,10 +41,6 @@ function ChatMessages({
   }, [messages, loading]);
 
 
-  console.log(messages)
-
-
-
   return (
     <div className='p-10 min-h-[60dvh] overflow-y-auto max-h-[70dvh]'>
 

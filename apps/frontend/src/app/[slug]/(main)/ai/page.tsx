@@ -9,6 +9,8 @@ async function page({
 
     const { slug } = await params
 
+    console.log(slug)
+
     return (
         <div>
             <ChatClient slug={slug}/>

@@ -1,8 +1,15 @@
-import OpenAI from 'openai';
-import { env } from '../../config/env';
-import { db } from '../../config/database';
-import { menuItems, categories, orders, orderItems, aiConversations, tenants } from '../../db/schema';
-import { eq, and } from 'drizzle-orm';
+import OpenAI from "openai";
+import { env } from "../../config/env";
+import { db } from "../../config/database";
+import {
+  menuItems,
+  categories,
+  orders,
+  orderItems,
+  aiConversations,
+  tenants,
+} from "../../db/schema";
+import { eq, and } from "drizzle-orm";
 
 const openai = new OpenAI({
   apiKey: env.OPENAI_API_KEY,
@@ -10,35 +17,50 @@ const openai = new OpenAI({
 });
 
 function normalizeText(text: string) {
-  return (text || '').toLowerCase().trim().replace(/\s+/g, ' ')
+  return (text || "").toLowerCase().trim().replace(/\s+/g, " ");
 }
 
-function getRelevantMenuCards(userText: string, items: any[], categoriesList: any[]) {
-  const text = normalizeText(userText)
+function getRelevantMenuCards(
+  userText: string,
+  items: any[],
+  categoriesList: any[],
+) {
+  const text = normalizeText(userText);
 
-  const showAllKeywords = ['منو', 'menu', 'همه', 'کل منو', 'لیست', 'غذاها', 'چی دارید', 'چی دارین']
+  const showAllKeywords = [
+    "منو",
+    "menu",
+    "همه",
+    "کل منو",
+    "لیست",
+    "غذاها",
+    "چی دارید",
+    "چی دارین",
+  ];
   if (showAllKeywords.some((k) => text.includes(normalizeText(k)))) {
-    return items
+    return items;
   }
 
   const matchedCat = categoriesList.find((cat: any) => {
-    const catName = normalizeText(cat.name)
-    return text.includes(catName) || (catName.length > 1 && catName.includes(text))
-  })
+    const catName = normalizeText(cat.name);
+    return (
+      text.includes(catName) || (catName.length > 1 && catName.includes(text))
+    );
+  });
 
   if (matchedCat) {
-    return items.filter((item: any) => item.categoryId === matchedCat.id)
+    return items.filter((item: any) => item.categoryId === matchedCat.id);
   }
 
   const directMatches = items.filter((item: any) => {
-    const name = normalizeText(item.name)
-    if (text.includes(name) || name.includes(text)) return true
+    const name = normalizeText(item.name);
+    if (text.includes(name) || name.includes(text)) return true;
 
-    const words = name.split(' ').filter((w: string) => w.length > 1)
-    return words.some((word: string) => text.includes(word))
-  })
+    const words = name.split(" ").filter((w: string) => w.length > 1);
+    return words.some((word: string) => text.includes(word));
+  });
 
-  return directMatches
+  return directMatches;
 }
 
 const SYSTEM_PROMPT_TEMPLATE = `تو یک AI Restaurant Agent حرفه‌ای هستی که برای یک سیستم SaaS چند رستورانی کار می‌کنی.
@@ -129,176 +151,233 @@ const SYSTEM_PROMPT_TEMPLATE = `تو یک AI Restaurant Agent حرفه‌ای ه
 {{CURRENT_CART}}`;
 
 interface CartItem {
-  menuItemId: string
-  name: string
-  price: string
-  quantity: number
+  menuItemId: string;
+  name: string;
+  price: string;
+  quantity: number;
 }
 
 export const aiService = {
-  async chat(tenantId: string, sessionId: string, userMessage: string, tableNumber?: number) {
+  async chat(
+    tenantId: string,
+    sessionId: string,
+    userMessage: string,
+    tableNumber?: number,
+  ) {
     let conversation = await db.query.aiConversations.findFirst({
       where: and(
         eq(aiConversations.tenantId, tenantId),
-        eq(aiConversations.sessionId, sessionId)
+        eq(aiConversations.sessionId, sessionId),
       ),
     });
 
     const history: any[] = (conversation?.messages as any[]) || [];
-    const cart: CartItem[] = ((conversation as any)?.cart) || [];
+    const cart: CartItem[] = (conversation as any)?.cart || [];
 
     const [menuItemsList, categoriesList, tenant] = await Promise.all([
       db.select().from(menuItems).where(eq(menuItems.tenantId, tenantId)),
       db.select().from(categories).where(eq(categories.tenantId, tenantId)),
-      db.select().from(tenants).where(eq(tenants.id, tenantId)).then(r => r[0]),
+      db
+        .select()
+        .from(tenants)
+        .where(eq(tenants.id, tenantId))
+        .then((r) => r[0]),
     ]);
 
-    const availableItems = menuItemsList.filter(i => i.status === 'available');
+    const availableItems = menuItemsList.filter(
+      (i) => i.status === "available",
+    );
 
     // کارت‌های منوی مرتبط با پیام کاربر
-    const relevantItems = getRelevantMenuCards(userMessage, availableItems, categoriesList)
+    const relevantItems = getRelevantMenuCards(
+      userMessage,
+      availableItems,
+      categoriesList,
+    );
     const menuCards = relevantItems.map((item) => ({
       id: item.id,
       name: item.name,
-      description: item.description || '',
+      description: item.description || "",
       price: item.price,
       image: item.image || null,
       isPopular: item.isPopular,
       preparationTime: item.preparationTime,
       status: item.status,
-    }))
+    }));
 
-    const menuContext = availableItems.map(item => {
-      const cat = categoriesList.find(c => c.id === item.categoryId);
-      return `- ${item.name} | ${Number(item.price).toLocaleString('fa-IR')} تومان | ID: ${item.id}` +
-        `${cat ? ` | دسته: ${cat.name}` : ''}` +
-        `${item.description ? ` | توضیح: ${item.description}` : ''}` +
-        `${item.preparationTime ? ` | زمان آماده‌سازی: ${item.preparationTime} دقیقه` : ''}` +
-        `${item.calories ? ` | کالری: ${item.calories}` : ''}` +
-        `${item.image ? ` | دارای عکس` : ''}`;
-    }).join('\n')
+    const menuContext = availableItems
+      .map((item) => {
+        const cat = categoriesList.find((c) => c.id === item.categoryId);
+        return (
+          `- ${item.name} | ${Number(item.price).toLocaleString("fa-IR")} تومان | ID: ${item.id}` +
+          `${cat ? ` | دسته: ${cat.name}` : ""}` +
+          `${item.description ? ` | توضیح: ${item.description}` : ""}` +
+          `${item.preparationTime ? ` | زمان آماده‌سازی: ${item.preparationTime} دقیقه` : ""}` +
+          `${item.calories ? ` | کالری: ${item.calories}` : ""}` +
+          `${item.image ? ` | دارای عکس` : ""}`
+        );
+      })
+      .join("\n");
 
-    const popularItems = availableItems
-      .filter(i => i.isPopular)
-      .map(i => `- ${i.name} (${i.totalOrders} سفارش)`)
-      .join('\n') || 'موردی ثبت نشده'
+    const popularItems =
+      availableItems
+        .filter((i) => i.isPopular)
+        .map((i) => `- ${i.name} (${i.totalOrders} سفارش)`)
+        .join("\n") || "موردی ثبت نشده";
 
-    const cartText = cart.length > 0
-      ? cart.map(c => `- ${c.name} × ${c.quantity} = ${(Number(c.price) * c.quantity).toLocaleString('fa-IR')} تومان`).join('\n')
-        + `\nجمع کل: ${cart.reduce((s, c) => s + Number(c.price) * c.quantity, 0).toLocaleString('fa-IR')} تومان`
-      : 'سبد خرید خالی است'
+    const cartText =
+      cart.length > 0
+        ? cart
+            .map(
+              (c) =>
+                `- ${c.name} × ${c.quantity} = ${(Number(c.price) * c.quantity).toLocaleString("fa-IR")} تومان`,
+            )
+            .join("\n") +
+          `\nجمع کل: ${cart.reduce((s, c) => s + Number(c.price) * c.quantity, 0).toLocaleString("fa-IR")} تومان`
+        : "سبد خرید خالی است";
 
-    const systemPrompt = SYSTEM_PROMPT_TEMPLATE
-      .replace('{{RESTAURANT_NAME}}', tenant?.name || 'رستوران')
-      .replace('{{MENU_CONTEXT}}', menuContext || 'منو خالی است')
-      .replace('{{POPULAR_ITEMS}}', popularItems)
-      .replace('{{CURRENT_CART}}', cartText)
+    const systemPrompt = SYSTEM_PROMPT_TEMPLATE.replace(
+      "{{RESTAURANT_NAME}}",
+      tenant?.name || "رستوران",
+    )
+      .replace("{{MENU_CONTEXT}}", menuContext || "منو خالی است")
+      .replace("{{POPULAR_ITEMS}}", popularItems)
+      .replace("{{CURRENT_CART}}", cartText);
 
-    history.push({ role: 'user', content: userMessage })
+    history.push({ role: "user", content: userMessage });
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: "deepseek-v4-flash",
       max_tokens: 1024,
       messages: [
-        { role: 'system', content: systemPrompt },
+        { role: "system", content: systemPrompt },
         ...history.map((m: any) => ({ role: m.role, content: m.content })),
       ],
-    })
+    });
 
-    const aiMessage = response.choices[0]?.message?.content || ''
-    history.push({ role: 'assistant', content: aiMessage })
+    const aiMessage = response.choices[0]?.message?.content || "";
+    history.push({ role: "assistant", content: aiMessage });
 
-    const orderMatch = aiMessage.match(/```order\n([\s\S]*?)\n```/)
-    let orderAction: any = null
+    const orderMatch = aiMessage.match(/```order\n([\s\S]*?)\n```/);
+    let orderAction: any = null;
     if (orderMatch) {
-      try { orderAction = JSON.parse(orderMatch[1]) } catch {}
+      try {
+        orderAction = JSON.parse(orderMatch[1]);
+      } catch {}
     }
 
-    let newCart = [...cart]
-    let orderSubmitted = false
-    let orderId: string | null = null
+    let newCart = [...cart];
+    let orderSubmitted = false;
+    let orderId: string | null = null;
 
     if (orderAction) {
       switch (orderAction.action) {
-        case 'add_items': {
+        case "add_items": {
           for (const item of orderAction.items || []) {
-            const menuItem = availableItems.find(m => m.id === item.menuItemId)
-            if (!menuItem) continue
+            const menuItem = availableItems.find(
+              (m) => m.id === item.menuItemId,
+            );
+            if (!menuItem) continue;
 
-            const existing = newCart.find(c => c.menuItemId === item.menuItemId)
+            const existing = newCart.find(
+              (c) => c.menuItemId === item.menuItemId,
+            );
             if (existing) {
-              existing.quantity += item.quantity || 1
+              existing.quantity += item.quantity || 1;
             } else {
               newCart.push({
                 menuItemId: menuItem.id,
                 name: menuItem.name,
                 price: menuItem.price,
                 quantity: item.quantity || 1,
-              })
+              });
             }
           }
-          break
+          break;
         }
-        case 'remove_items': {
-          const removeIds = (orderAction.items || []).map((i: any) => i.menuItemId)
-          newCart = newCart.filter(c => !removeIds.includes(c.menuItemId))
-          break
+        case "remove_items": {
+          const removeIds = (orderAction.items || []).map(
+            (i: any) => i.menuItemId,
+          );
+          newCart = newCart.filter((c) => !removeIds.includes(c.menuItemId));
+          break;
         }
-        case 'update_quantity': {
+        case "update_quantity": {
           for (const item of orderAction.items || []) {
-            const existing = newCart.find(c => c.menuItemId === item.menuItemId)
-            if (existing) existing.quantity = item.quantity
+            const existing = newCart.find(
+              (c) => c.menuItemId === item.menuItemId,
+            );
+            if (existing) existing.quantity = item.quantity;
           }
-          newCart = newCart.filter(c => c.quantity > 0)
-          break
+          newCart = newCart.filter((c) => c.quantity > 0);
+          break;
         }
-        case 'checkout': {
+        case "checkout": {
           if (newCart.length > 0) {
-            const totalAmount = newCart.reduce((s, c) => s + Number(c.price) * c.quantity, 0)
+            const totalAmount = newCart.reduce(
+              (s, c) => s + Number(c.price) * c.quantity,
+              0,
+            );
 
-            const [order] = await db.insert(orders).values({
-              tenantId,
-              tableNumber,
-              totalAmount: totalAmount.toString(),
-              status: 'pending',
-              isAiOrder: true,
-            }).returning()
+            const [order] = await db
+              .insert(orders)
+              .values({
+                tenantId,
+                tableNumber,
+                totalAmount: totalAmount.toString(),
+                status: "pending",
+                isAiOrder: true,
+              })
+              .returning();
 
             await db.insert(orderItems).values(
-              newCart.map(c => ({
+              newCart.map((c) => ({
                 orderId: order.id,
                 menuItemId: c.menuItemId,
                 name: c.name,
                 price: c.price,
                 quantity: c.quantity,
                 subtotal: (Number(c.price) * c.quantity).toString(),
-              }))
-            )
+              })),
+            );
 
-            orderId = order.id
-            orderSubmitted = true
-            newCart = []
+            orderId = order.id;
+            orderSubmitted = true;
+            newCart = [];
           }
-          break
+          break;
         }
       }
     }
 
     if (conversation) {
-      await db.update(aiConversations)
-        .set({ messages: history, updatedAt: new Date(), cart: newCart as any, orderId: orderId || conversation.orderId } as any)
-        .where(eq(aiConversations.id, conversation.id))
+      await db
+        .update(aiConversations)
+        .set({
+          messages: history,
+          updatedAt: new Date(),
+          cart: newCart as any,
+          orderId: orderId || conversation.orderId,
+        } as any)
+        .where(eq(aiConversations.id, conversation.id));
     } else {
-      conversation = (await db.insert(aiConversations).values({
-        tenantId,
-        sessionId,
-        messages: history,
-        cart: newCart as any,
-        orderId,
-      } as any).returning())[0]
+      conversation = (
+        await db
+          .insert(aiConversations)
+          .values({
+            tenantId,
+            sessionId,
+            messages: history,
+            cart: newCart as any,
+            orderId,
+          } as any)
+          .returning()
+      )[0];
     }
 
-    const displayMessage = aiMessage.replace(/```order\n[\s\S]*?\n```/g, '').trim()
+    const displayMessage = aiMessage
+      .replace(/```order\n[\s\S]*?\n```/g, "")
+      .trim();
 
     return {
       message: displayMessage,
@@ -308,44 +387,44 @@ export const aiService = {
       orderSubmitted,
       orderId,
       conversationId: conversation?.id,
-    }
+    };
   },
 
   async analyzeForAdmin(tenantId: string, question: string) {
     const [items, recentOrders] = await Promise.all([
       db.select().from(menuItems).where(eq(menuItems.tenantId, tenantId)),
       db.select().from(orders).where(eq(orders.tenantId, tenantId)).limit(50),
-    ])
+    ]);
 
     const topItems = [...items]
       .sort((a, b) => (b.totalOrders || 0) - (a.totalOrders || 0))
-      .slice(0, 5)
+      .slice(0, 5);
 
     const totalRevenue = recentOrders
-      .filter(o => o.status === 'delivered')
-      .reduce((s, o) => s + Number(o.totalAmount), 0)
+      .filter((o) => o.status === "delivered")
+      .reduce((s, o) => s + Number(o.totalAmount), 0);
 
     const context = `
 پرفروش‌ترین آیتم‌ها:
-${topItems.map(i => `- ${i.name}: ${i.totalOrders} سفارش`).join('\n')}
+${topItems.map((i) => `- ${i.name}: ${i.totalOrders} سفارش`).join("\n")}
 
 تعداد کل سفارشات: ${recentOrders.length}
-درآمد کل (تحویل شده): ${totalRevenue.toLocaleString('fa-IR')} تومان
+درآمد کل (تحویل شده): ${totalRevenue.toLocaleString("fa-IR")} تومان
 تعداد آیتم‌های منو: ${items.length}
-`
+`;
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: "gpt-4o",
       max_tokens: 1500,
       messages: [
         {
-          role: 'system',
+          role: "system",
           content: `تو یک مشاور کسب‌وکار هوشمند برای رستوران هستی. داده‌های رستوران:\n${context}\nتحلیل دقیق و عملی بده. به فارسی پاسخ بده.`,
         },
-        { role: 'user', content: question },
+        { role: "user", content: question },
       ],
-    })
+    });
 
-    return response.choices[0]?.message?.content || ''
+    return response.choices[0]?.message?.content || "";
   },
-}
+};

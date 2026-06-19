@@ -12,6 +12,7 @@ import toast from 'react-hot-toast'
 export default function CustomerOrdersPage() {
   const { slug } = useParams<{ slug: string }>()
   const [orderId, setOrderId] = useState<string | null>(null)
+  console.log(slug)
 
   // orderId از localStorage بخون
   useEffect(() => {

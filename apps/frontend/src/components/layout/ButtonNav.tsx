@@ -14,7 +14,7 @@ export default function ButtonNav({slug} : {slug : string}) {
   const links = [
     { id: 1, title: "سفارش من", icons: "/icons/shop.svg", href: `/${slug}/orders` },
     { id: 2, title: "دستیار هوشمند", icons: "/icons/ai.svg", href: `/${slug}/ai` },
-    { id: 3, title: "منو کافه", icons: "/icons/home.svg", href: "/${slug}/menu" },
+    { id: 3, title: "منو کافه", icons: "/icons/home.svg", href: `/${slug}/menu` },
   ];
 
   return (

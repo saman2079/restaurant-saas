@@ -19,6 +19,8 @@ import menuRoutes from './modules/menu/menu.routes';
 import orderRoutes from './modules/orders/order.routes';
 import aiRoutes from './modules/ai/ai.routes';
 import uploadRoutes from './modules/upload/upload.routes';
+import staffRoutes from './modules/staff/staff.routes';
+
 
 const app = express();
 const httpServer = createServer(app);
@@ -81,6 +83,8 @@ app.use(cors({ origin: '*', credentials: true }));
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use('/api/:slug/staff', staffRoutes);
+
 
 // ─── Static Files ─────────────────────────────────────────
 app.use('/uploads', (req, res, next) => {
