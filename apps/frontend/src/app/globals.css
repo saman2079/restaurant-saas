@@ -3,3 +3,7 @@
 @theme {
   --font-sans: var(--font-vazir);
 }
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}

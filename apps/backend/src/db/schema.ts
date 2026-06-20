@@ -20,6 +20,7 @@ export const userRoleEnum = pgEnum("user_role", [
   "manager",
   "waiter",
   "chef",
+  "cashier",
 ]);
 
 export const orderStatusEnum = pgEnum("order_status", [
@@ -164,6 +165,7 @@ export const orders = pgTable(
   "orders",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    paidAt: timestamp('paid_at'),
     tenantId: uuid("tenant_id")
       .references(() => tenants.id, { onDelete: "cascade" })
       .notNull(),

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
-import { Providers } from './providers'
 import './globals.css'
 import { vazir } from '../fonts'
+import { Providers } from './providers'
 
 export const metadata: Metadata = {
   title: 'پنل مدیریت رستوران',

@@ -1,4 +1,4 @@
-import { apiClient } from './client'
+import  createserver, { apiClient } from './client'
 import { ApiResponse, Category, MenuItem } from '@/types'
 
 export const menuApi = {
@@ -48,4 +48,10 @@ export const menuApi = {
   deleteItem: async (slug: string, id: string) => {
     await apiClient.delete(`/${slug}/menu/items/${id}`)
   },
+
+  getFullMenuPublic: async (slug : string) => {
+    const {data} = await createserver(`/${slug}/menu/full`)
+    return data
+  }
+
 }

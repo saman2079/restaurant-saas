@@ -7,14 +7,61 @@ import { useAuthStore } from "@/lib/store/auth.store";
 import { cn } from "@/lib/utils";
 
 const ALL_NAV_ITEMS = [
-  { href: `admin`, label: "داشبورد", icon: "📊", exact: true, roles: ['owner', 'manager', 'waiter', 'chef', 'super_admin'] },
-  { href: `admin/menu`, label: "منو", icon: "🍽️", roles: ['owner', 'manager'] },
-  { href: `admin/orders`, label: "سفارشات", icon: "📋", roles: ['owner', 'manager', 'waiter', 'chef'] },
-  { href: `admin/staff`, label: "کارمندان", icon: "👥", roles: ['owner'] },
-  { href: `admin/analytics`, label: "آمار", icon: "📈", roles: ['owner', 'manager'] },
+  {
+    href: `admin`,
+    label: "داشبورد",
+    icon: "📊",
+    exact: true,
+    roles: ["owner", "manager", "waiter", "chef", "cashier", "super_admin"],
+  },
+  {
+    href: `admin/cashier`,
+    label: "صندوق",
+    icon: "💳",
+    roles: ["owner", "cashier"],
+  },
+  {
+    href: `admin/orders`,
+    label: "سفارشات",
+    icon: "📋",
+    roles: ["owner", "manager", "waiter", "chef"],
+  },
+  { href: `admin/menu`, label: "منو", icon: "🍽️", roles: ["owner", "manager"] },
+  { href: `admin/staff`, label: "کارمندان", icon: "👥", roles: ["owner"] },
+  {
+    href: `admin/tables`,
+    label: "QR Code میزها",
+    icon: "📱",
+    roles: ["owner", "manager"],
+  },
+  {
+    href: `admin/analytics`,
+    label: "آمار",
+    icon: "📈",
+    roles: ["owner", "manager"],
+  },
+  {
+    href: `admin/profile`,
+    label: "پروفایل من",
+    icon: "👤",
+    roles: ["owner", "manager", "waiter", "chef", "cashier"],
+  },
 ];
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+const roleLabels: Record<string, string> = {
+  owner: "مالک",
+  manager: "مدیر",
+  waiter: "گارسون",
+  chef: "آشپز",
+  cashier: "صندوقدار",
+  super_admin: "سوپر ادمین",
+};
+
+export default function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const { slug } = useParams<{ slug: string }>();
@@ -22,32 +69,36 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (!_hasHydrated) return;
-    if (!token || !user) { router.push("/login"); return; }
+    if (!token || !user) {
+      router.push("/login");
+      return;
+    }
     const allowed = ["owner", "manager", "waiter", "chef", "super_admin"];
     if (!allowed.includes(user.role)) router.push("/login");
   }, [_hasHydrated, token, user, router]);
 
-  if (!_hasHydrated) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
-    </div>
-  );
+  if (!_hasHydrated)
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+      </div>
+    );
 
   if (!user || !token) return null;
 
-  const navItems = ALL_NAV_ITEMS
-    .filter(item => item.roles.includes(user.role))
-    .map(item => ({ ...item, href: `/${slug}/${item.href}` }));
+  const navItems = ALL_NAV_ITEMS.filter((item) =>
+    item.roles.includes(user.role),
+  ).map((item) => ({ ...item, href: `/${slug}/${item.href}` }));
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname.startsWith(href);
 
   const roleLabels: Record<string, string> = {
-    owner: 'مالک',
-    manager: 'مدیر',
-    waiter: 'گارسون',
-    chef: 'آشپز',
-    super_admin: 'سوپر ادمین',
+    owner: "مالک",
+    manager: "مدیر",
+    waiter: "گارسون",
+    chef: "آشپز",
+    super_admin: "سوپر ادمین",
   };
 
   return (
@@ -59,7 +110,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-gray-900">{slug}</p>
-            <p className="text-xs text-gray-400">{roleLabels[user.role] || user.role}</p>
+            <p className="text-xs text-gray-400">
+              {roleLabels[user.role] || user.role}
+            </p>
           </div>
         </div>
 
@@ -89,7 +142,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span>👁️</span> مشاهده منو
           </Link>
           <button
-            onClick={() => { clearAuth(); router.push("/login"); }}
+            onClick={() => {
+              clearAuth();
+              router.push("/login");
+            }}
             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
           >
             <span>🚪</span> خروج

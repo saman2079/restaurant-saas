@@ -12,7 +12,7 @@ export const uploadApi = {
     )
 
     // url کامل برگردون
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:4000/api'
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:4000'
     return `${baseUrl}${data.data.url}`
   },
 }

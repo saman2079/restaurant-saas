@@ -1,6 +1,6 @@
 "use client";
 
-import { MenuItem } from "@/types/product";
+import { MenuItem } from "@/types";
 import { useCartStore } from "@/store/cart-store";
 
 interface Props {
@@ -19,7 +19,7 @@ export default function AddToCartButton({
     } = useCartStore();
 
     const cartItem = items.find(
-        (i) => i._id === item._id
+        (i) => i._id === item.id
     );
 
 
@@ -34,10 +34,10 @@ export default function AddToCartButton({
                     e.preventDefault();
 
                     addToCart({
-                        _id: item._id,
+                        _id: item.id,
                         name: item.name,
                         price: item.price,
-                        image: item.images[0],
+                        image: item.image as string,
                     });
                 }}
                 className="
@@ -64,7 +64,7 @@ export default function AddToCartButton({
 
                     e.preventDefault();
 
-                    decrease(item._id);
+                    decrease(item.id);
                 }}
                 className="
                     w-7 h-7 rounded-full
@@ -83,7 +83,7 @@ export default function AddToCartButton({
 
                     e.preventDefault();
 
-                    increase(item._id);
+                    increase(item.id);
                 }}
                 className="
                     w-7 h-7 rounded-full

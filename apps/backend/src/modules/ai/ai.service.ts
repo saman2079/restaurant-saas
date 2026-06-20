@@ -248,7 +248,7 @@ export const aiService = {
 
     const response = await openai.chat.completions.create({
       model: "deepseek-v4-flash",
-      max_tokens: 1024,
+      // max_tokens: 2024,
       messages: [
         { role: "system", content: systemPrompt },
         ...history.map((m: any) => ({ role: m.role, content: m.content })),
@@ -414,8 +414,8 @@ ${topItems.map((i) => `- ${i.name}: ${i.totalOrders} سفارش`).join("\n")}
 `;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      max_tokens: 1500,
+      model: "deepseek-v4-flash",
+      // max_tokens: 1500,
       messages: [
         {
           role: "system",
