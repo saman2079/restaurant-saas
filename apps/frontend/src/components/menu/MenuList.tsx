@@ -24,11 +24,11 @@ export default function MenuList({ category }: Props) {
       {/* سکشن مربوط به این کتگوری با id یکتا */}
       <section
         id={`category-${id}`}
-        className="space-y-4 scroll-mt-[15rem] bg-red-700"
+        className="space-y-4 scroll-mt-[15rem]"
       >
         <h2 className="text-2xl font-bold">{name}</h2>
 
-        <div className="space-y-2 bg-blue-900">
+        <div className="space-y-2">
           {items.map((item) => (
             <Link
               key={item.id}
@@ -41,7 +41,7 @@ export default function MenuList({ category }: Props) {
                 alt=""
                 width={108}
                 height={127}
-                className="rounded-[17px] min-h-[127px]"
+                className="rounded-[17px] min-h-[127px] min-w-[107px] max-w-[107px] max-h-[127px]"
               />
 
               <div className="flex flex-col justify-center w-full">

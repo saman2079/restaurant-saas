@@ -2,6 +2,7 @@
 
 import { Category } from "@/types";
 import Image from "next/image";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 interface Props {
@@ -9,8 +10,7 @@ interface Props {
 }
 
 export default function CategoryBar({ categories }: Props) {
-  console.log(categories);
-
+  const {slug} = useParams()
   const [activeCategory, setActiveCategory] = useState("");
 
   const scrollToCategory = (categoryId: string) => {
@@ -30,14 +30,9 @@ export default function CategoryBar({ categories }: Props) {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          // اگر سکشن داخل صفحه دیده شد
           if (entry.isIntersecting) {
-            // category-123
             const sectionId = entry.target.id;
-
-            // 123
             const categoryId = sectionId.replace("category-", "");
-
             setActiveCategory(categoryId);
           }
         });
@@ -62,7 +57,7 @@ export default function CategoryBar({ categories }: Props) {
   return (
     <div className="text-[#201F20] bg-[#F5F6FB] rounded-t-[40px] py-5 sticky top-0 z-50">
       <div className="px-10 py-5 space-y-2">
-        <h1>کافه رستوران تهران</h1>
+        <h1>کافه رستوران {slug}</h1>
         <p>میدان ونک</p>
       </div>
 
@@ -92,7 +87,7 @@ export default function CategoryBar({ categories }: Props) {
                   alt=""
                   width={24}
                   height={24}
-                  className={`${active ? "brightness-100 invert-0" : ""}`}
+                  className={`min-h-[24px] min-w-[24px] max-h-[24px] max-w-[24px] ${active ? "brightness-100 invert-0" : ""}`}
                 />
               )}
 
