@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import { QRCodeCanvas } from "qrcode.react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { AppErrorBoundary } from "@/components/ui/error-boundary";
 
 interface Table {
@@ -30,7 +29,7 @@ export default function TablesPage() {
   };
 
   const getTableUrl = (tableNumber: number) =>
-    `${baseUrl}/${slug}?table=${tableNumber}`;
+    `http://172.20.10.13:3000/${slug}?table=${tableNumber}`;
 
   const handlePrint = (table: Table) => {
     setPrintTable(table);

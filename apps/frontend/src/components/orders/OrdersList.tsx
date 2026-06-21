@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import OrderedCard from "./OrderedCard";
 import { useCartStore } from "@/store/cart-store";
@@ -8,19 +8,20 @@ import { useParams, useSearchParams } from "next/navigation";
 import { orderApi } from "@/lib/api/order.api";
 
 interface Props {
-  onSubmitted: (orderId: string) => void;
+  onOrderPlaced: (orderId: string) => void;
 }
 
-export default function OrdersList({ onSubmitted }: Props) {
+export default function OrdersList({ onOrderPlaced }: Props) {
   const params = useParams();
   const slug = params.slug as string;
   const searchParams = useSearchParams();
+
+  console.log(searchParams)
   const [tableNumber, setTableNumber] = useState<number | undefined>();
-  const [mounted, setMounted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const fromUrl = searchParams.get('table');
+    const fromUrl = searchParams.get("table");
     if (fromUrl) {
       const num = parseInt(fromUrl);
       setTableNumber(num);
@@ -29,26 +30,23 @@ export default function OrdersList({ onSubmitted }: Props) {
       const fromStorage = localStorage.getItem(`tableNumber-${slug}`);
       if (fromStorage) setTableNumber(parseInt(fromStorage));
     }
-    setMounted(true);
   }, [slug, searchParams]);
 
   const { items, increase, decrease, removeFromCart, clearCart } = useCartStore();
 
-  const handleAcceptOrder = async () => {
+  const handleSubmit = async () => {
     if (items.length === 0) return;
     setIsSubmitting(true);
-
     try {
       const order = await orderApi.create(slug, {
         tableNumber,
-        items: items.map((item: any) => ({
-          menuItemId: item.id || item._id,
+        items: items.map((item) => ({
+          menuItemId: item._id,
           quantity: item.quantity,
         })),
       });
-
-      clearCart();
-      onSubmitted(order.id);
+      clearCart(); // cart پاک
+      onOrderPlaced(order.id);
     } catch (error: any) {
       alert(error?.response?.data?.message || "ثبت سفارش انجام نشد");
     } finally {
@@ -57,16 +55,10 @@ export default function OrdersList({ onSubmitted }: Props) {
   };
 
   const itemsTotal = items.reduce(
-    (sum: number, item: any) => sum + item.price * item.quantity, 0
+    (sum, item) => sum + item.price * item.quantity, 0
   );
   const serviceFee = items.length > 0 ? 70000 : 0;
   const total = itemsTotal + serviceFee;
-
-  if (!mounted) return (
-    <div className="flex items-center justify-center h-40">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
-    </div>
-  );
 
   return (
     <div className="w-full" dir="rtl">
@@ -76,15 +68,15 @@ export default function OrdersList({ onSubmitted }: Props) {
 
       <div className="bg-[#1E1E1E] text-white rounded-[12px] py-3 text-center mb-4">
         <p className="text-[13px]">میز شما</p>
-        <p className="text-[18px] font-bold">{tableNumber || '-'}</p>
+        <p className="text-[18px] font-bold">{tableNumber || "-"}</p>
       </div>
 
       <div className="flex flex-col gap-3">
         {items.length > 0 ? (
           <AnimatePresence>
-            {items.map((item: any, index: number) => (
+            {items.map((item, index) => (
               <motion.div
-                key={item.id || item._id}
+                key={item._id}
                 layout
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -93,10 +85,10 @@ export default function OrdersList({ onSubmitted }: Props) {
               >
                 <OrderedCard
                   item={item}
-                  onIncrease={() => increase(item.id || item._id)}
+                  onIncrease={() => increase(item._id)}
                   onDecrease={() => {
-                    if (item.quantity <= 1) removeFromCart(item.id || item._id);
-                    else decrease(item.id || item._id);
+                    if (item.quantity <= 1) removeFromCart(item._id);
+                    else decrease(item._id);
                   }}
                 />
               </motion.div>
@@ -130,7 +122,7 @@ export default function OrdersList({ onSubmitted }: Props) {
 
           <div className="mt-6">
             <button
-              onClick={handleAcceptOrder}
+              onClick={handleSubmit}
               disabled={isSubmitting}
               className="w-full h-[52px] rounded-[14px] bg-[#1E1E1E] text-white font-bold text-[16px] disabled:opacity-50 active:scale-95 transition-transform"
             >

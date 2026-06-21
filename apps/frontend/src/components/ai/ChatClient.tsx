@@ -15,8 +15,8 @@ export interface Message {
 
 function ChatClient({ slug }: { slug: string }) {
   const searchParams = useSearchParams();
-  const tableNumber = searchParams.get('table') 
-    ? parseInt(searchParams.get('table')!) 
+  const tableNumber = searchParams.get("table")
+    ? parseInt(searchParams.get("table")!)
     : null;
 
   const [message, setMessage] = useState("");
@@ -68,7 +68,7 @@ function ChatClient({ slug }: { slug: string }) {
 
     const socket = io(
       process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000",
-      { transports: ["websocket", "polling"] }
+      { transports: ["websocket", "polling"] },
     );
 
     socketRef.current = socket;
@@ -100,7 +100,10 @@ function ChatClient({ slug }: { slug: string }) {
 
       if (aiMsg) {
         setMessages((prev) => {
-          const updated = [...prev, { role: "assistant" as const, content: aiMsg }];
+          const updated = [
+            ...prev,
+            { role: "assistant" as const, content: aiMsg },
+          ];
           localStorage.setItem(`messages-${slug}`, JSON.stringify(updated));
           return updated;
         });
@@ -124,22 +127,23 @@ function ChatClient({ slug }: { slug: string }) {
     setLoading(true);
 
     // شماره میز از URL یا localStorage
-    const currentTableNumber = tableNumber 
-      || parseInt(localStorage.getItem(`tableNumber-${slug}`) || '0') 
-      || undefined;
+    const currentTableNumber =
+      tableNumber ||
+      parseInt(localStorage.getItem(`tableNumber-${slug}`) || "0") ||
+      undefined;
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") || "http://localhost:4000"}/api/${slug}/ai/chat`,
+        `http://${window.location.hostname}:4000/api/${slug}/ai/chat`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            message, 
-            sessionId, 
+          body: JSON.stringify({
+            message,
+            sessionId,
             tableNumber: currentTableNumber,
           }),
-        }
+        },
       );
 
       const data = await res.json();
@@ -177,15 +181,16 @@ function ChatClient({ slug }: { slug: string }) {
   };
 
   // تا localStorage لود نشده، چیزی نشون نده
-  if (!mounted) return (
-    <div className="bg-[#E4E4E4] flex items-center justify-center h-screen">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
-    </div>
-  );
+  if (!mounted)
+    return (
+      <div className="bg-[#E4E4E4] flex items-center justify-center h-screen">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+      </div>
+    );
 
   return (
     <div className="bg-[#E4E4E4] flex flex-col gap-2 text-[16px] text-[#201F20] h-screen overflow-hidden">
-      <ChatHeader  />
+      <ChatHeader />
       <ChatMessages messages={messages} loading={loading} />
       <ChatInput
         message={message}

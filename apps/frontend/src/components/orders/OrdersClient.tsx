@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import Invoice from "./Invoice";
 import OrdersList from "./OrdersList";
 import { useParams } from "next/navigation";
-import { orderApi } from "@/lib/api/order.api";
 
 export default function OrdersClient() {
   const params = useParams();
@@ -18,12 +17,14 @@ export default function OrdersClient() {
     setMounted(true);
   }, [slug]);
 
-  const handleSubmitted = (id: string) => {
+  const handleOrderPlaced = (id: string) => {
     localStorage.setItem(`current-order-${slug}`, id);
     setOrderId(id);
   };
 
-  const handleNewOrder = () => {
+  // وقتی سفارش تموم شد یا لغو شد - فقط orderId رو پاک کن
+  // صفحه بعدی که اومدن اینجا، cart خالی میبینن
+  const handleOrderDone = () => {
     localStorage.removeItem(`current-order-${slug}`);
     setOrderId(null);
   };
@@ -34,9 +35,9 @@ export default function OrdersClient() {
     </div>
   );
 
-  return orderId ? (
-    <Invoice orderId={orderId} slug={slug} onClose={handleNewOrder} />
-  ) : (
-    <OrdersList onSubmitted={handleSubmitted} />
-  );
+  if (orderId) {
+    return <Invoice orderId={orderId} slug={slug} onDone={handleOrderDone} />;
+  }
+
+  return <OrdersList onOrderPlaced={handleOrderPlaced} />;
 }

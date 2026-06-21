@@ -1,8 +1,8 @@
 import { Router } from 'express';
+import { analyticsController } from './analytics.controller';
 import { authenticate } from '../../middlewares/auth.middleware';
 import { requireManager } from '../../middlewares/role.middleware';
 import { resolveTenant } from '../../middlewares/tenant.middleware';
-import { analyticsController } from './analytics.controller';
 
 const router = Router({ mergeParams: true });
 router.use(authenticate, resolveTenant, requireManager);
