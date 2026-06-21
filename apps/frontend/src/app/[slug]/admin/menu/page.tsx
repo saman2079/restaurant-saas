@@ -265,6 +265,17 @@ export default function MenuPage() {
 
   // console.log(filteredItems[0].image)
 
+  const deleteCategoryMutation = useMutation({
+    mutationFn: (id: string) => menuApi.deleteCategory(slug, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["categories", slug] });
+      // اگر دسته‌بندی حذف‌شده فعال بود، به "همه" برگردون
+      if (activeCategory === id) setActiveCategory("all");
+      toast.success("دسته‌بندی حذف شد");
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? "خطا در حذف"),
+  });
+
   return (
     <AppErrorBoundary>
       <div className="p-6 space-y-4">
@@ -290,29 +301,79 @@ export default function MenuPage() {
           </div>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          <button
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          {/* کارت "همه" */}
+          <div
             onClick={() => setActiveCategory("all")}
-            className={`whitespace-nowrap px-3 py-1.5 rounded-full text-sm transition-colors ${
+            className={`flex-shrink-0 min-w-[80px] p-3 rounded-xl border-2 cursor-pointer transition-all ${
               activeCategory === "all"
-                ? "bg-orange-500 text-white"
-                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                ? "border-orange-500 bg-orange-50"
+                : "border-gray-200 bg-white hover:border-gray-300"
             }`}
           >
-            همه ({items.length})
-          </button>
+            <div className="text-center">
+              <span className="text-sm font-medium">همه</span>
+              <span className="block text-xs text-gray-400">
+                {items.length}
+              </span>
+            </div>
+          </div>
+
+          {/* کارت‌های دسته‌بندی */}
           {categories.map((cat: Category) => (
-            <button
+            <div
               key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`whitespace-nowrap px-3 py-1.5 rounded-full text-sm transition-colors ${
+              className={`relative flex-shrink-0 w-28 p-3 rounded-xl border-2 cursor-pointer transition-all ${
                 activeCategory === cat.id
-                  ? "bg-orange-500 text-white"
-                  : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                  ? "border-orange-500 bg-orange-50"
+                  : "border-gray-200 bg-white hover:border-gray-300"
               }`}
+              onClick={() => setActiveCategory(cat.id)}
             >
-              {cat.name}
-            </button>
+              {/* عکس دسته‌بندی (در صورت وجود) */}
+              {cat.image && (
+                <img
+                  src={cat.image}
+                  alt={cat.name}
+                  className="w-10 h-10 rounded-full object-cover mx-auto mb-1"
+                />
+              )}
+              <div className="text-center">
+                <span className="text-sm font-medium block truncate">
+                  {cat.name}
+                </span>
+                <span className="text-xs text-gray-400">
+                  {items.filter((i) => i.categoryId === cat.id).length} آیتم
+                </span>
+              </div>
+
+              {/* دکمه حذف - همیشه قابل مشاهده */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // جلوگیری از تغییر فیلتر
+                  if (confirm(`دسته‌بندی "${cat.name}" حذف شود؟`)) {
+                    deleteCategoryMutation.mutate(cat.id);
+                  }
+                }}
+                className="absolute top-1 right-1 p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                title="حذف دسته‌بندی"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+              </button>
+            </div>
           ))}
         </div>
 

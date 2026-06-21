@@ -5,6 +5,7 @@ import ChatHeader from "./ChatHeader";
 import ChatMessages from "./ChatMessages";
 import ChatInput from "./ChatInput";
 import { io, Socket } from "socket.io-client";
+import { useSearchParams } from "next/navigation";
 
 export interface Message {
   role: "user" | "assistant";
@@ -13,13 +14,19 @@ export interface Message {
 }
 
 function ChatClient({ slug }: { slug: string }) {
+  const searchParams = useSearchParams();
+  const tableNumber = searchParams.get('table') 
+    ? parseInt(searchParams.get('table')!) 
+    : null;
+
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState("");
+  const [mounted, setMounted] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
-  // لود session و پیام‌های قبلی از localStorage
+  // لود همه چیز از localStorage یه بار
   useEffect(() => {
     const storedSessionId = localStorage.getItem(`sessionId-${slug}`);
     const storedMessages = localStorage.getItem(`messages-${slug}`);
@@ -37,17 +44,26 @@ function ChatClient({ slug }: { slug: string }) {
         setMessages(JSON.parse(storedMessages));
       } catch {}
     }
+
+    // شماره میز رو ذخیره کن
+    if (tableNumber) {
+      localStorage.setItem(`tableNumber-${slug}`, String(tableNumber));
+    }
+
+    setMounted(true);
   }, [slug]);
 
   // ذخیره پیام‌ها
   useEffect(() => {
+    if (!mounted) return;
     if (messages.length > 0) {
       localStorage.setItem(`messages-${slug}`, JSON.stringify(messages));
     }
-  }, [messages, slug]);
+  }, [messages, slug, mounted]);
 
-  // Socket - یه بار وصل میشه
+  // Socket
   useEffect(() => {
+    if (!mounted) return;
     const orderId = localStorage.getItem(`current-order-${slug}`);
 
     const socket = io(
@@ -58,10 +74,8 @@ function ChatClient({ slug }: { slug: string }) {
     socketRef.current = socket;
 
     socket.on("connect", () => {
-      console.log("✅ Socket متصل شد");
       if (orderId) {
         socket.emit("join-order", orderId);
-        console.log("join-order:", orderId);
       }
     });
 
@@ -93,15 +107,13 @@ function ChatClient({ slug }: { slug: string }) {
       }
     });
 
-    socket.on("disconnect", () => {
-      console.log("❌ Socket قطع شد");
-    });
+    socket.on("disconnect", () => {});
 
     return () => {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [slug]);
+  }, [slug, mounted]);
 
   const sendMessage = useCallback(async () => {
     if (!message.trim() || loading) return;
@@ -111,13 +123,22 @@ function ChatClient({ slug }: { slug: string }) {
     setMessage("");
     setLoading(true);
 
+    // شماره میز از URL یا localStorage
+    const currentTableNumber = tableNumber 
+      || parseInt(localStorage.getItem(`tableNumber-${slug}`) || '0') 
+      || undefined;
+
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") || "http://localhost:4000"}/api/${slug}/ai/chat`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, sessionId, tableNumber: 1 }),
+          body: JSON.stringify({ 
+            message, 
+            sessionId, 
+            tableNumber: currentTableNumber,
+          }),
         }
       );
 
@@ -129,11 +150,9 @@ function ChatClient({ slug }: { slug: string }) {
         menuCards: data.data.menuCards || [],
       };
 
-      // اگه سفارش ثبت شد، join-order بزن
       if (data.data.orderSubmitted && data.data.orderId) {
         localStorage.setItem(`current-order-${slug}`, data.data.orderId);
         socketRef.current?.emit("join-order", data.data.orderId);
-        console.log("join-order after submit:", data.data.orderId);
       }
 
       setMessages((prev) => [...prev, aiMessage]);
@@ -145,7 +164,7 @@ function ChatClient({ slug }: { slug: string }) {
     } finally {
       setLoading(false);
     }
-  }, [message, loading, sessionId, slug]);
+  }, [message, loading, sessionId, slug, tableNumber]);
 
   const clearChat = () => {
     localStorage.removeItem(`messages-${slug}`);
@@ -156,6 +175,13 @@ function ChatClient({ slug }: { slug: string }) {
     localStorage.setItem(`sessionId-${slug}`, newSessionId);
     setSessionId(newSessionId);
   };
+
+  // تا localStorage لود نشده، چیزی نشون نده
+  if (!mounted) return (
+    <div className="bg-[#E4E4E4] flex items-center justify-center h-screen">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+    </div>
+  );
 
   return (
     <div className="bg-[#E4E4E4] flex flex-col gap-2 text-[16px] text-[#201F20] h-screen overflow-hidden">

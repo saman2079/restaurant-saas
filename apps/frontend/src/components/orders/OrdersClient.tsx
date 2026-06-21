@@ -1,15 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Invoice from "./Invoice";
 import OrdersList from "./OrdersList";
+import { useParams } from "next/navigation";
+import { orderApi } from "@/lib/api/order.api";
 
 export default function OrdersClient() {
-  const [submittedOrder, setSubmittedOrder] = useState<any>(null);
+  const params = useParams();
+  const slug = params.slug as string;
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
 
-  return submittedOrder ? (
-    <Invoice order={submittedOrder} onClose={() => setSubmittedOrder(null)} />
+  useEffect(() => {
+    const savedOrderId = localStorage.getItem(`current-order-${slug}`);
+    if (savedOrderId) setOrderId(savedOrderId);
+    setMounted(true);
+  }, [slug]);
+
+  const handleSubmitted = (id: string) => {
+    localStorage.setItem(`current-order-${slug}`, id);
+    setOrderId(id);
+  };
+
+  const handleNewOrder = () => {
+    localStorage.removeItem(`current-order-${slug}`);
+    setOrderId(null);
+  };
+
+  if (!mounted) return (
+    <div className="flex items-center justify-center h-40">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+    </div>
+  );
+
+  return orderId ? (
+    <Invoice orderId={orderId} slug={slug} onClose={handleNewOrder} />
   ) : (
-    <OrdersList onSubmitted={setSubmittedOrder} />
+    <OrdersList onSubmitted={handleSubmitted} />
   );
 }
