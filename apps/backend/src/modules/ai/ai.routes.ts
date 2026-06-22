@@ -12,7 +12,7 @@ const router = Router({ mergeParams: true });
 // چت مشتری (بدون auth)
 router.post("/chat", resolveTenant, async (req: AuthRequest, res: Response) => {
   try {
-    const { message, sessionId, tableNumber } = req.body;
+    const { message, sessionId, tableNumber,sessionToken } = req.body;
     if (!message || !sessionId)
       return sendError(res, "پیام و sessionId لازم است");
 
@@ -21,6 +21,7 @@ router.post("/chat", resolveTenant, async (req: AuthRequest, res: Response) => {
       sessionId,
       message,
       tableNumber,
+      sessionToken
     );
     return sendSuccess(res, result);
   } catch (e: any) {

@@ -131,6 +131,8 @@ function ChatClient({ slug }: { slug: string }) {
       tableNumber ||
       parseInt(localStorage.getItem(`tableNumber-${slug}`) || "0") ||
       undefined;
+    const sessionToken =
+      localStorage.getItem(`tableSession-${slug}`) || undefined;
 
     try {
       const res = await fetch(
@@ -142,6 +144,7 @@ function ChatClient({ slug }: { slug: string }) {
             message,
             sessionId,
             tableNumber: currentTableNumber,
+            sessionToken,
           }),
         },
       );

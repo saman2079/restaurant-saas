@@ -11,13 +11,31 @@ interface Props {
   onDone: () => void;
 }
 
-const STATUS_INFO: Record<string, { label: string; icon: string; color: string; bg: string }> = {
-  pending:   { label: "در انتظار تایید",   icon: "⏳", color: "#B45309", bg: "#FEF3C7" },
-  confirmed: { label: "تایید شد",          icon: "✅", color: "#1D4ED8", bg: "#DBEAFE" },
-  preparing: { label: "در حال آماده‌سازی", icon: "👨‍🍳", color: "#C2410C", bg: "#FFEDD5" },
-  ready:     { label: "آماده تحویل",       icon: "🍽️", color: "#15803D", bg: "#DCFCE7" },
-  delivered: { label: "تحویل داده شد",     icon: "🎉", color: "#166534", bg: "#DCFCE7" },
-  cancelled: { label: "لغو شد",            icon: "❌", color: "#B91C1C", bg: "#FEE2E2" },
+const STATUS_INFO: Record<
+  string,
+  { label: string; icon: string; color: string; bg: string }
+> = {
+  pending: {
+    label: "در انتظار تایید",
+    icon: "⏳",
+    color: "#B45309",
+    bg: "#FEF3C7",
+  },
+  confirmed: { label: "تایید شد", icon: "✅", color: "#1D4ED8", bg: "#DBEAFE" },
+  preparing: {
+    label: "در حال آماده‌سازی",
+    icon: "👨‍🍳",
+    color: "#C2410C",
+    bg: "#FFEDD5",
+  },
+  ready: { label: "آماده تحویل", icon: "🍽️", color: "#15803D", bg: "#DCFCE7" },
+  delivered: {
+    label: "تحویل داده شد",
+    icon: "🎉",
+    color: "#166534",
+    bg: "#DCFCE7",
+  },
+  cancelled: { label: "لغو شد", icon: "❌", color: "#B91C1C", bg: "#FEE2E2" },
 };
 
 export default function Invoice({ orderId, slug, onDone }: Props) {
@@ -29,12 +47,17 @@ export default function Invoice({ orderId, slug, onDone }: Props) {
 
   // گرفتن سفارش از API
   useEffect(() => {
-    orderApi.getByIdPublic(slug, orderId)
+    orderApi
+      .getByIdPublic(slug, orderId)
       .then((data) => {
         setOrder(data);
         setStatus(data.status);
       })
-      .catch(console.error)
+      .catch(() => {
+        // سفارش پیدا نشد - orderId رو پاک کن
+        localStorage.removeItem(`current-order-${slug}`);
+        onDone(); // برگرد به cart
+      })
       .finally(() => setIsLoading(false));
   }, [orderId, slug]);
 
@@ -42,7 +65,7 @@ export default function Invoice({ orderId, slug, onDone }: Props) {
   useEffect(() => {
     const socket = io(
       process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000",
-      { transports: ["websocket", "polling"] }
+      { transports: ["websocket", "polling"] },
     );
     socketRef.current = socket;
 
@@ -60,23 +83,30 @@ export default function Invoice({ orderId, slug, onDone }: Props) {
       }
     });
 
-    return () => { socket.disconnect(); socketRef.current = null; };
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
   }, [orderId, slug]);
 
-  if (isLoading) return (
-    <div className="flex items-center justify-center h-40">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
-    </div>
-  );
+  if (isLoading)
+    return (
+      <div className="flex items-center justify-center h-40">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+      </div>
+    );
 
-  if (!order) return (
-    <div className="text-center mt-10 text-[#666]">سفارش پیدا نشد</div>
-  );
+  if (!order)
+    return <div className="text-center mt-10 text-[#666]">سفارش پیدا نشد</div>;
 
   const info = STATUS_INFO[status] || STATUS_INFO.pending;
-  const total = order.items?.reduce(
-    (sum: number, item: any) => sum + Number(item.subtotal || 0), 0
-  ) || Number(order.totalAmount) || 0;
+  const total =
+    order.items?.reduce(
+      (sum: number, item: any) => sum + Number(item.subtotal || 0),
+      0,
+    ) ||
+    Number(order.totalAmount) ||
+    0;
 
   const isDone = status === "delivered" || status === "cancelled";
 
@@ -105,17 +135,27 @@ export default function Invoice({ orderId, slug, onDone }: Props) {
       {/* تصویر */}
       <div className="w-[200px] h-[200px] rounded-full border-2 border-[#A3A3A3] flex items-center justify-center mb-6">
         <div className="w-[160px] h-[160px] rounded-full border border-[#BDBDBD] flex items-center justify-center">
-          <Image src="/imge/order.png" width={70} height={70} alt="order" className="opacity-70" />
+          <Image
+            src="/imge/order.png"
+            width={70}
+            height={70}
+            alt="order"
+            className="opacity-70"
+          />
         </div>
       </div>
 
       {/* آیتم‌ها */}
       {order.items?.length > 0 && (
         <div className="w-full bg-white rounded-[16px] border border-[#E0E0E0] px-4 py-4 mb-4 space-y-2">
-          <p className="text-[13px] text-[#888] mb-2 text-center">جزئیات سفارش</p>
+          <p className="text-[13px] text-[#888] mb-2 text-center">
+            جزئیات سفارش
+          </p>
           {order.items.map((item: any, i: number) => (
             <div key={i} className="flex justify-between text-[14px]">
-              <span className="text-[#3C3C3C]">{item.quantity}× {item.name}</span>
+              <span className="text-[#3C3C3C]">
+                {item.quantity}× {item.name}
+              </span>
               <span className="text-[#1E1E1E] font-medium">
                 {Number(item.subtotal || 0).toLocaleString()} تومان
               </span>
@@ -123,7 +163,9 @@ export default function Invoice({ orderId, slug, onDone }: Props) {
           ))}
           <div className="border-t border-[#E0E0E0] pt-2 flex justify-between font-bold text-[15px]">
             <span>جمع کل</span>
-            <span style={{ color: "#8B6B4A" }}>{total.toLocaleString()} تومان</span>
+            <span style={{ color: "#8B6B4A" }}>
+              {total.toLocaleString()} تومان
+            </span>
           </div>
         </div>
       )}
@@ -131,8 +173,12 @@ export default function Invoice({ orderId, slug, onDone }: Props) {
       {/* زمان آماده‌سازی */}
       {!isDone && (
         <div className="w-full bg-[#FDFBF7] border border-[#D5D1C8] rounded-[16px] px-6 py-5 text-center mb-6">
-          <p className="text-[14px] text-[#3C3C3C] mb-1">زمان تقریبی آماده‌سازی</p>
-          <p className="text-[28px] font-bold" style={{ color: "#8B6B4A" }}>15-20 دقیقه</p>
+          <p className="text-[14px] text-[#3C3C3C] mb-1">
+            زمان تقریبی آماده‌سازی
+          </p>
+          <p className="text-[28px] font-bold" style={{ color: "#8B6B4A" }}>
+            15-20 دقیقه
+          </p>
         </div>
       )}
 

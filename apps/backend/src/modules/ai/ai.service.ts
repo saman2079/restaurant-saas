@@ -10,6 +10,7 @@ import {
   tenants,
 } from "../../db/schema";
 import { eq, and } from "drizzle-orm";
+import { tablesService } from "../tables/tables.service";
 
 const openai = new OpenAI({
   apiKey: env.OPENAI_API_KEY,
@@ -163,6 +164,7 @@ export const aiService = {
     sessionId: string,
     userMessage: string,
     tableNumber?: number,
+    sessionToken?: string, // ← اضافه
   ) {
     let conversation = await db.query.aiConversations.findFirst({
       where: and(
@@ -314,6 +316,28 @@ export const aiService = {
         }
         case "checkout": {
           if (newCart.length > 0) {
+            if (tableNumber && sessionToken) {
+              const isValid = await tablesService.validateSession(
+                tenantId,
+                tableNumber,
+                sessionToken,
+              );
+              if (!isValid) {
+                return {
+                  message:
+                    "جلسه شما منقضی شده است. لطفاً QR کد میز را دوباره اسکن کنید 🔄",
+                  menuCards: [],
+                  cart: newCart,
+                  cartTotal: newCart.reduce(
+                    (s, c) => s + Number(c.price) * c.quantity,
+                    0,
+                  ),
+                  orderSubmitted: false,
+                  orderId: null,
+                  conversationId: conversation?.id,
+                };
+              }
+            }
             const totalAmount = newCart.reduce(
               (s, c) => s + Number(c.price) * c.quantity,
               0,

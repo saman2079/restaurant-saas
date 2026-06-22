@@ -32,6 +32,7 @@ export const orderApi = {
     slug: string,
     payload: {
       tableNumber?: number;
+      sessionToken?: string; // ← اضافه
       items: { menuItemId: string; quantity: number }[];
     },
   ) => {
@@ -39,7 +40,7 @@ export const orderApi = {
       `/${slug}/orders`,
       payload,
     );
-    return data.data; // ← باید order رو برگردونه با items
+    return data.data;
   },
 
   // مشتری - ویرایش آیتم‌ها قبل از تایید

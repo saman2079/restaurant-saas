@@ -16,7 +16,7 @@ export default function OrdersList({ onOrderPlaced }: Props) {
   const slug = params.slug as string;
   const searchParams = useSearchParams();
 
-  console.log(searchParams)
+  console.log(searchParams);
   const [tableNumber, setTableNumber] = useState<number | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -32,30 +32,56 @@ export default function OrdersList({ onOrderPlaced }: Props) {
     }
   }, [slug, searchParams]);
 
-  const { items, increase, decrease, removeFromCart, clearCart } = useCartStore();
+  const { items, increase, decrease, removeFromCart, clearCart } =
+    useCartStore();
 
   const handleSubmit = async () => {
     if (items.length === 0) return;
+
+    const sessionToken = localStorage.getItem(`tableSession-${slug}`);
+
+    // اگه tableNumber داره ولی session نداره
+    if (tableNumber && !sessionToken) {
+      alert("لطفاً QR کد میز را دوباره اسکن کنید");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const order = await orderApi.create(slug, {
         tableNumber,
+        sessionToken: sessionToken || undefined,
         items: items.map((item) => ({
           menuItemId: item._id,
           quantity: item.quantity,
         })),
       });
-      clearCart(); // cart پاک
+      clearCart();
       onOrderPlaced(order.id);
     } catch (error: any) {
-      alert(error?.response?.data?.message || "ثبت سفارش انجام نشد");
+      const msg = error?.response?.data?.message || "";
+
+      if (msg.startsWith("TABLE_HAS_ACTIVE_ORDER:")) {
+        const existingOrderId = msg.replace("TABLE_HAS_ACTIVE_ORDER:", "");
+        clearCart();
+        onOrderPlaced(existingOrderId);
+      } else if (
+        msg.startsWith("SESSION_INVALID") ||
+        msg.startsWith("SESSION_REQUIRED")
+      ) {
+        localStorage.removeItem(`tableSession-${slug}`);
+        alert("جلسه منقضی شده. QR کد میز را دوباره اسکن کنید");
+      } else {
+        alert(msg || "ثبت سفارش انجام نشد");
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const itemsTotal = items.reduce(
-    (sum, item) => sum + item.price * item.quantity, 0
+    (sum, item) => sum + item.price * item.quantity,
+    0,
   );
   const serviceFee = items.length > 0 ? 70000 : 0;
   const total = itemsTotal + serviceFee;
@@ -98,7 +124,9 @@ export default function OrdersList({ onOrderPlaced }: Props) {
           <div className="text-center mt-16">
             <p className="text-[40px] mb-3">🛒</p>
             <p className="text-[#666] text-[15px]">سبد سفارش شما خالی است</p>
-            <p className="text-[#999] text-[13px] mt-1">از منو آیتم اضافه کنید</p>
+            <p className="text-[#999] text-[13px] mt-1">
+              از منو آیتم اضافه کنید
+            </p>
           </div>
         )}
       </div>
