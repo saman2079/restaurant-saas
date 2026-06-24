@@ -54,8 +54,6 @@ services:
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
       NODE_ENV: development
     volumes:
-      - ./apps/backend:/app
-      - /app/node_modules
       - uploads_data:/app/uploads
     depends_on:
       postgres:
