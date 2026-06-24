@@ -16,7 +16,6 @@ export default function OrdersList({ onOrderPlaced }: Props) {
   const slug = params.slug as string;
   const searchParams = useSearchParams();
 
-  console.log(searchParams);
   const [tableNumber, setTableNumber] = useState<number | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -26,6 +25,20 @@ export default function OrdersList({ onOrderPlaced }: Props) {
       const num = parseInt(fromUrl);
       setTableNumber(num);
       localStorage.setItem(`tableNumber-${slug}`, String(num));
+
+      // ✅ اینجا session بگیر
+      fetch(`/api/${slug}/tables/session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tableNumber: num }),
+      })
+        .then((r) => r.json())
+        .then(({ data }) => {
+          console.log(data.sessionToken);
+          if (data.sessionToken) {
+            localStorage.setItem(`tableSession-${slug}`, data.sessionToken);
+          }
+        });
     } else {
       const fromStorage = localStorage.getItem(`tableNumber-${slug}`);
       if (fromStorage) setTableNumber(parseInt(fromStorage));
@@ -41,10 +54,10 @@ export default function OrdersList({ onOrderPlaced }: Props) {
     const sessionToken = localStorage.getItem(`tableSession-${slug}`);
 
     // اگه tableNumber داره ولی session نداره
-    if (tableNumber && !sessionToken) {
-      alert("لطفاً QR کد میز را دوباره اسکن کنید");
-      return;
-    }
+    // if (tableNumber && !sessionToken) {
+    //   alert("لطفاً QR کد میز را دوباره اسکن کنید");
+    //   return;
+    // }
 
     setIsSubmitting(true);
     try {
@@ -67,7 +80,7 @@ export default function OrdersList({ onOrderPlaced }: Props) {
         onOrderPlaced(existingOrderId);
       } else if (
         msg.startsWith("SESSION_INVALID") ||
-        msg.startsWith("SESSION_REQUIRED")
+        msg.startsWith("sessionToken")
       ) {
         localStorage.removeItem(`tableSession-${slug}`);
         alert("جلسه منقضی شده. QR کد میز را دوباره اسکن کنید");

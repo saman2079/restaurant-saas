@@ -32,7 +32,7 @@ export const orderApi = {
     slug: string,
     payload: {
       tableNumber?: number;
-      sessionToken?: string; // ← اضافه
+      sessionToken?: string;
       items: { menuItemId: string; quantity: number }[];
     },
   ) => {

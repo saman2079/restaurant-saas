@@ -2,14 +2,9 @@ import OpenAI from "openai";
 import { env } from "../../config/env";
 import { db } from "../../config/database";
 import {
-  menuItems,
-  categories,
-  orders,
-  orderItems,
-  aiConversations,
-  tenants,
+  menuItems, categories, orders, orderItems, aiConversations, tenants,
 } from "../../db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 import { tablesService } from "../tables/tables.service";
 
 const openai = new OpenAI({
@@ -21,135 +16,23 @@ function normalizeText(text: string) {
   return (text || "").toLowerCase().trim().replace(/\s+/g, " ");
 }
 
-function getRelevantMenuCards(
-  userText: string,
-  items: any[],
-  categoriesList: any[],
-) {
+function getRelevantMenuCards(userText: string, items: any[], categoriesList: any[]) {
   const text = normalizeText(userText);
-
-  const showAllKeywords = [
-    "منو",
-    "menu",
-    "همه",
-    "کل منو",
-    "لیست",
-    "غذاها",
-    "چی دارید",
-    "چی دارین",
-  ];
-  if (showAllKeywords.some((k) => text.includes(normalizeText(k)))) {
-    return items;
-  }
+  const showAllKeywords = ["منو", "menu", "همه", "کل منو", "لیست", "غذاها", "چی دارید", "چی دارین"];
+  if (showAllKeywords.some((k) => text.includes(normalizeText(k)))) return items;
 
   const matchedCat = categoriesList.find((cat: any) => {
     const catName = normalizeText(cat.name);
-    return (
-      text.includes(catName) || (catName.length > 1 && catName.includes(text))
-    );
+    return text.includes(catName) || (catName.length > 1 && catName.includes(text));
   });
+  if (matchedCat) return items.filter((item: any) => item.categoryId === matchedCat.id);
 
-  if (matchedCat) {
-    return items.filter((item: any) => item.categoryId === matchedCat.id);
-  }
-
-  const directMatches = items.filter((item: any) => {
+  return items.filter((item: any) => {
     const name = normalizeText(item.name);
     if (text.includes(name) || name.includes(text)) return true;
-
-    const words = name.split(" ").filter((w: string) => w.length > 1);
-    return words.some((word: string) => text.includes(word));
+    return name.split(" ").filter((w: string) => w.length > 1).some((word: string) => text.includes(word));
   });
-
-  return directMatches;
 }
-
-const SYSTEM_PROMPT_TEMPLATE = `تو یک AI Restaurant Agent حرفه‌ای هستی که برای یک سیستم SaaS چند رستورانی کار می‌کنی.
-
-هر درخواست فقط به داده‌های همین رستوران دسترسی دارد و نباید اطلاعات رستوران‌های دیگر را نمایش دهی.
-
-========================
-هدف اصلی
-========
-1. به سوالات مشتری درباره منو پاسخ کامل بدهی
-2. درباره هر غذا توضیح کامل بدهی (مواد، قیمت، زمان آماده‌سازی، کالری، آلرژن در صورت وجود)
-3. غذاهای مشابه و مکمل پیشنهاد بدهی
-4. سفارش مشتری را مدیریت کنی (افزودن، حذف، تغییر تعداد، نهایی‌سازی)
-5. تجربه‌ای شبیه گارسون حرفه‌ای ایجاد کنی
-
-========================
-نمایش منو و کارت‌ها
-==================
-وقتی مشتری درباره منو، دسته‌بندی خاص، یا یک غذا سوال می‌کند، کارت‌های مربوطه به صورت گرافیکی به او نمایش داده می‌شود (تو لازم نیست عکس رو توصیف کنی یا بگی نمیتونی عکس نشون بدی).
-فقط کافیست به صورت کوتاه بگویی مثلاً: "این مورد رو برات نشون دادم" یا "گزینه‌های موجود رو می‌بینی".
-هرگز نگو "نمی‌توانم عکس نمایش دهم" - چون سیستم خودش عکس‌ها رو نمایش می‌دهد.
-
-========================
-قوانین پاسخگویی
-===============
-- همیشه فارسی، دوستانه، حرفه‌ای، کوتاه اما کامل
-- هرگز اطلاعاتی نساز. اگر چیزی در منو نیست بگو: "این مورد در منو موجود نیست"
-
-========================
-مدیریت سفارش
-============
-وقتی مشتری درخواست افزودن آیتم داد (مثلاً "دو تا پیتزا مخصوص"):
-در پایان پاسخ این بلاک رو بذار:
-
-\`\`\`order
-{
-  "action": "add_items",
-  "items": [
-    {"menuItemId": "ID_FROM_MENU", "name": "نام دقیق", "quantity": 2}
-  ]
-}
-\`\`\`
-
-اگر گفت حذفش کن:
-\`\`\`order
-{
-  "action": "remove_items",
-  "items": [{"menuItemId": "ITEM_ID", "name": "نام"}]
-}
-\`\`\`
-
-اگر گفت تعدادش رو عوض کن:
-\`\`\`order
-{
-  "action": "update_quantity",
-  "items": [{"menuItemId": "ITEM_ID", "name": "نام", "quantity": 3}]
-}
-\`\`\`
-
-اگر مشتری گفت "سفارشم چیه" یا "سبد خریدم رو نشون بده": فقط توضیح بده، هیچ JSON تولید نکن.
-
-فقط وقتی مشتری صراحتاً گفت "ثبت سفارش" یا "تایید میکنم" یا "نهایی کن":
-\`\`\`order
-{
-  "action": "checkout"
-}
-\`\`\`
-قبل از این، هرگز checkout تولید نکن.
-
-========================
-قوانین مهم
-==========
-1. هرگز menuItemId جعلی نساز - فقط از آیتم‌های موجود در منو استفاده کن
-2. هرگز قیمت جعلی نساز
-3. اگر آیتم unavailable یا out_of_stock بود، سفارش ثبت نکن و توضیح بده
-4. سعی کن فروش بیشتری ایجاد کنی - وقتی غذا سفارش داد، نوشیدنی یا دسر مکمل پیشنهاد بده
-5. JSON فقط داخل بلاک \`\`\`order قرار بگیرد، خارج از آن هیچ JSON دیگری تولید نشود
-
-========================
-منوی رستوران "{{RESTAURANT_NAME}}"
-========================
-{{MENU_CONTEXT}}
-
-محبوب‌ترین آیتم‌ها:
-{{POPULAR_ITEMS}}
-
-سبد خرید فعلی مشتری:
-{{CURRENT_CART}}`;
 
 interface CartItem {
   menuItemId: string;
@@ -158,14 +41,37 @@ interface CartItem {
   quantity: number;
 }
 
+// وضعیت‌هایی که بعدشون فقط اضافه کردن مجازه
+const CONFIRMED_STATUSES = ['confirmed', 'preparing', 'ready'];
+
 export const aiService = {
   async chat(
     tenantId: string,
     sessionId: string,
     userMessage: string,
     tableNumber?: number,
-    sessionToken?: string, // ← اضافه
+    sessionToken?: string,
   ) {
+    // ─── ۱. امنیت: بدون میز فقط منو نشون میده ───
+    if (tableNumber) {
+      if (!sessionToken) {
+        return {
+          message: "❌ برای سفارش دادن باید QR کد میز را اسکن کنید.",
+          menuCards: [], cart: [], cartTotal: 0,
+          orderSubmitted: false, orderId: null, conversationId: null,
+        };
+      }
+      const isValid = await tablesService.validateSession(tenantId, tableNumber, sessionToken);
+      if (!isValid) {
+        return {
+          message: "⏰ جلسه شما منقضی شده. لطفاً QR کد میز را دوباره اسکن کنید.",
+          menuCards: [], cart: [], cartTotal: 0,
+          orderSubmitted: false, orderId: null, conversationId: null,
+        };
+      }
+    }
+
+    // ─── ۲. گرفتن conversation ───
     let conversation = await db.query.aiConversations.findFirst({
       where: and(
         eq(aiConversations.tenantId, tenantId),
@@ -174,85 +80,146 @@ export const aiService = {
     });
 
     const history: any[] = (conversation?.messages as any[]) || [];
-    const cart: CartItem[] = (conversation as any)?.cart || [];
+    let cart: CartItem[] = (conversation as any)?.cart || [];
+
+    // ─── ۳. گرفتن سفارش فعال میز (دستی یا AI) ───
+    let activeOrderId: string | null = (conversation as any)?.orderId || null;
+    let activeOrderStatus: string | null = null;
+    let existingOrderItems: any[] = [];
+
+    if (tableNumber) {
+      // همیشه از دیتابیس چک کن - هم دستی هم AI
+      const activeOrder = await db.query.orders.findFirst({
+        where: and(
+          eq(orders.tenantId, tenantId),
+          eq(orders.tableNumber, tableNumber),
+          sql`${orders.status} NOT IN ('cancelled', 'delivered')`,
+          isNull(orders.paidAt),
+        ),
+        with: { items: true },
+      });
+
+      if (activeOrder) {
+        activeOrderId = activeOrder.id;
+        activeOrderStatus = activeOrder.status;
+        existingOrderItems = (activeOrder as any).items || [];
+      } else {
+        // سفارش قبلی تموم شده، cart رو پاک کن
+        if (activeOrderId) {
+          activeOrderId = null;
+          cart = [];
+          if (conversation) {
+            await db.update(aiConversations)
+              .set({ cart: [] as any, orderId: null } as any)
+              .where(eq(aiConversations.id, conversation.id));
+          }
+        }
+      }
+    }
 
     const [menuItemsList, categoriesList, tenant] = await Promise.all([
       db.select().from(menuItems).where(eq(menuItems.tenantId, tenantId)),
       db.select().from(categories).where(eq(categories.tenantId, tenantId)),
-      db
-        .select()
-        .from(tenants)
-        .where(eq(tenants.id, tenantId))
-        .then((r) => r[0]),
+      db.select().from(tenants).where(eq(tenants.id, tenantId)).then((r) => r[0]),
     ]);
 
-    const availableItems = menuItemsList.filter(
-      (i) => i.status === "available",
-    );
-
-    // کارت‌های منوی مرتبط با پیام کاربر
-    const relevantItems = getRelevantMenuCards(
-      userMessage,
-      availableItems,
-      categoriesList,
-    );
+    const availableItems = menuItemsList.filter((i) => i.status === "available");
+    const relevantItems = getRelevantMenuCards(userMessage, availableItems, categoriesList);
     const menuCards = relevantItems.map((item) => ({
-      id: item.id,
-      name: item.name,
-      description: item.description || "",
-      price: item.price,
-      image: item.image || null,
-      isPopular: item.isPopular,
-      preparationTime: item.preparationTime,
-      status: item.status,
+      id: item.id, name: item.name, description: item.description || "",
+      price: item.price, image: item.image || null,
+      isPopular: item.isPopular, preparationTime: item.preparationTime, status: item.status,
     }));
 
-    const menuContext = availableItems
-      .map((item) => {
-        const cat = categoriesList.find((c) => c.id === item.categoryId);
-        return (
-          `- ${item.name} | ${Number(item.price).toLocaleString("fa-IR")} تومان | ID: ${item.id}` +
-          `${cat ? ` | دسته: ${cat.name}` : ""}` +
-          `${item.description ? ` | توضیح: ${item.description}` : ""}` +
-          `${item.preparationTime ? ` | زمان آماده‌سازی: ${item.preparationTime} دقیقه` : ""}` +
-          `${item.calories ? ` | کالری: ${item.calories}` : ""}` +
-          `${item.image ? ` | دارای عکس` : ""}`
-        );
-      })
-      .join("\n");
+    const menuContext = availableItems.map((item) => {
+      const cat = categoriesList.find((c) => c.id === item.categoryId);
+      return `- ${item.name} | ${Number(item.price).toLocaleString("fa-IR")} تومان | ID: ${item.id}` +
+        `${cat ? ` | دسته: ${cat.name}` : ""}` +
+        `${item.description ? ` | توضیح: ${item.description}` : ""}` +
+        `${item.preparationTime ? ` | زمان: ${item.preparationTime} دقیقه` : ""}`;
+    }).join("\n");
 
-    const popularItems =
-      availableItems
-        .filter((i) => i.isPopular)
-        .map((i) => `- ${i.name} (${i.totalOrders} سفارش)`)
-        .join("\n") || "موردی ثبت نشده";
+    const popularItems = availableItems.filter((i) => i.isPopular)
+      .map((i) => `- ${i.name}`).join("\n") || "موردی ثبت نشده";
 
-    const cartText =
-      cart.length > 0
-        ? cart
-            .map(
-              (c) =>
-                `- ${c.name} × ${c.quantity} = ${(Number(c.price) * c.quantity).toLocaleString("fa-IR")} تومان`,
-            )
-            .join("\n") +
-          `\nجمع کل: ${cart.reduce((s, c) => s + Number(c.price) * c.quantity, 0).toLocaleString("fa-IR")} تومان`
-        : "سبد خرید خالی است";
+    // ─── وضعیت سفارش برای prompt ───
+    const isConfirmed = activeOrderStatus && CONFIRMED_STATUSES.includes(activeOrderStatus);
+    const existingItemsText = existingOrderItems.length > 0
+      ? existingOrderItems.map((i: any) =>
+          `- ${i.name} × ${i.quantity} = ${(Number(i.price) * i.quantity).toLocaleString("fa-IR")} تومان [ID: ${i.menuItemId}]`
+        ).join("\n")
+      : "ندارد";
 
-    const systemPrompt = SYSTEM_PROMPT_TEMPLATE.replace(
-      "{{RESTAURANT_NAME}}",
-      tenant?.name || "رستوران",
-    )
-      .replace("{{MENU_CONTEXT}}", menuContext || "منو خالی است")
-      .replace("{{POPULAR_ITEMS}}", popularItems)
-      .replace("{{CURRENT_CART}}", cartText);
+    const cartText = cart.length > 0
+      ? cart.map((c) => `- ${c.name} × ${c.quantity} = ${(Number(c.price) * c.quantity).toLocaleString("fa-IR")} تومان`).join("\n") +
+        `\nجمع کل: ${cart.reduce((s, c) => s + Number(c.price) * c.quantity, 0).toLocaleString("fa-IR")} تومان`
+      : "سبد خرید خالی است";
+
+    const tableInfo = tableNumber
+      ? `✅ شماره میز: ${tableNumber}\n` +
+        (activeOrderId
+          ? `📋 سفارش فعال موجود است (ID: ${activeOrderId}) - وضعیت: ${activeOrderStatus}\n` +
+            `آیتم‌های ثبت شده:\n${existingItemsText}\n` +
+            (isConfirmed
+              ? `⚠️ سفارش تایید شده - فقط آیتم‌های جدید اضافه کن، حذف یا ویرایش تعداد مجاز نیست`
+              : `✏️ سفارش pending است - میتوان ویرایش کرد`)
+          : `📭 سفارش فعال ندارد`)
+      : `⚠️ مشتری شماره میز ندارد - فقط منو نشون بده. سفارش ثبت نکن.`;
+
+    const SYSTEM_PROMPT = `تو یک AI Restaurant Agent حرفه‌ای هستی برای رستوران "${tenant?.name || 'رستوران'}".
+
+========================
+وضعیت مشتری
+===========
+${tableInfo}
+
+========================
+قوانین امنیتی مهم
+==================
+1. ${!tableNumber ? '❌ این مشتری میز ندارد - اصلاً سفارش ثبت نکن، فقط منو نشون بده' : '✅ مشتری میز دارد'}
+2. هرگز menuItemId جعلی نساز
+3. فقط از آیتم‌های موجود در منو استفاده کن
+4. ${isConfirmed ? '🔒 سفارش تایید شده - فقط action مجاز "add_items" است. از remove_items و update_quantity استفاده نکن' : '✏️ سفارش pending - همه actionها مجازند'}
+5. قبل از checkout، خلاصه سفارش رو نشون بده و تاییدیه بگیر
+
+========================
+مدیریت سفارش
+=============
+افزودن آیتم:
+\`\`\`order
+{"action":"add_items","items":[{"menuItemId":"EXACT_ID","name":"نام دقیق","quantity":1}]}
+\`\`\`
+
+${!isConfirmed ? `حذف آیتم:
+\`\`\`order
+{"action":"remove_items","items":[{"menuItemId":"ID","name":"نام"}]}
+\`\`\`
+
+تغییر تعداد:
+\`\`\`order
+{"action":"update_quantity","items":[{"menuItemId":"ID","name":"نام","quantity":2}]}
+\`\`\`
+` : ''}
+ثبت نهایی (فقط وقتی مشتری تایید کرد و سبد خالی نیست):
+\`\`\`order
+{"action":"checkout"}
+\`\`\`
+
+========================
+منوی رستوران
+============
+${menuContext}
+
+محبوب‌ترین: ${popularItems}
+
+سبد AI فعلی: ${cartText}`;
 
     history.push({ role: "user", content: userMessage });
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
-      // max_tokens: 2024,
       messages: [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: SYSTEM_PROMPT },
         ...history.map((m: any) => ({ role: m.role, content: m.content })),
       ],
     });
@@ -263,145 +230,162 @@ export const aiService = {
     const orderMatch = aiMessage.match(/```order\n([\s\S]*?)\n```/);
     let orderAction: any = null;
     if (orderMatch) {
-      try {
-        orderAction = JSON.parse(orderMatch[1]);
-      } catch {}
+      try { orderAction = JSON.parse(orderMatch[1]); } catch {}
     }
 
     let newCart = [...cart];
     let orderSubmitted = false;
-    let orderId: string | null = null;
+    let orderId: string | null = activeOrderId;
 
-    if (orderAction) {
-      switch (orderAction.action) {
-        case "add_items": {
-          for (const item of orderAction.items || []) {
-            const menuItem = availableItems.find(
-              (m) => m.id === item.menuItemId,
-            );
-            if (!menuItem) continue;
+    if (orderAction && tableNumber) {
+      // اگه سفارش تایید شده، فقط add_items مجازه
+      if (isConfirmed && orderAction.action !== 'add_items' && orderAction.action !== 'checkout') {
+        console.warn(`⚠️ AI tried ${orderAction.action} on confirmed order - blocked`);
+        orderAction = null;
+      }
 
-            const existing = newCart.find(
-              (c) => c.menuItemId === item.menuItemId,
-            );
-            if (existing) {
-              existing.quantity += item.quantity || 1;
-            } else {
-              newCart.push({
-                menuItemId: menuItem.id,
-                name: menuItem.name,
-                price: menuItem.price,
-                quantity: item.quantity || 1,
-              });
-            }
-          }
-          break;
-        }
-        case "remove_items": {
-          const removeIds = (orderAction.items || []).map(
-            (i: any) => i.menuItemId,
-          );
-          newCart = newCart.filter((c) => !removeIds.includes(c.menuItemId));
-          break;
-        }
-        case "update_quantity": {
-          for (const item of orderAction.items || []) {
-            const existing = newCart.find(
-              (c) => c.menuItemId === item.menuItemId,
-            );
-            if (existing) existing.quantity = item.quantity;
-          }
-          newCart = newCart.filter((c) => c.quantity > 0);
-          break;
-        }
-        case "checkout": {
-          if (newCart.length > 0) {
-            if (tableNumber && sessionToken) {
-              const isValid = await tablesService.validateSession(
-                tenantId,
-                tableNumber,
-                sessionToken,
-              );
-              if (!isValid) {
-                return {
-                  message:
-                    "جلسه شما منقضی شده است. لطفاً QR کد میز را دوباره اسکن کنید 🔄",
-                  menuCards: [],
-                  cart: newCart,
-                  cartTotal: newCart.reduce(
-                    (s, c) => s + Number(c.price) * c.quantity,
-                    0,
-                  ),
-                  orderSubmitted: false,
-                  orderId: null,
-                  conversationId: conversation?.id,
-                };
+      if (orderAction) {
+        switch (orderAction.action) {
+          case "add_items": {
+            for (const item of orderAction.items || []) {
+              const menuItem = availableItems.find((m) => m.id === item.menuItemId);
+              if (!menuItem) continue;
+
+              // اگه سفارش confirm شده، آیتم‌های تکراری رو نمیتونیم اضافه کنیم
+              if (isConfirmed) {
+                const alreadyInOrder = existingOrderItems.some((i: any) => i.menuItemId === item.menuItemId);
+                if (alreadyInOrder) continue; // skip - نمیشه تعداد تغییر داد
+              }
+
+              const existing = newCart.find((c) => c.menuItemId === item.menuItemId);
+              if (existing) {
+                existing.quantity += item.quantity || 1;
+              } else {
+                newCart.push({
+                  menuItemId: menuItem.id,
+                  name: menuItem.name,
+                  price: menuItem.price,
+                  quantity: item.quantity || 1,
+                });
               }
             }
-            const totalAmount = newCart.reduce(
-              (s, c) => s + Number(c.price) * c.quantity,
-              0,
-            );
-
-            const [order] = await db
-              .insert(orders)
-              .values({
-                tenantId,
-                tableNumber,
-                totalAmount: totalAmount.toString(),
-                status: "pending",
-                isAiOrder: true,
-              })
-              .returning();
-
-            await db.insert(orderItems).values(
-              newCart.map((c) => ({
-                orderId: order.id,
-                menuItemId: c.menuItemId,
-                name: c.name,
-                price: c.price,
-                quantity: c.quantity,
-                subtotal: (Number(c.price) * c.quantity).toString(),
-              })),
-            );
-
-            orderId = order.id;
-            orderSubmitted = true;
-            newCart = [];
+            break;
           }
-          break;
+          case "remove_items": {
+            const removeIds = (orderAction.items || []).map((i: any) => i.menuItemId);
+            newCart = newCart.filter((c) => !removeIds.includes(c.menuItemId));
+            break;
+          }
+          case "update_quantity": {
+            for (const item of orderAction.items || []) {
+              const existing = newCart.find((c) => c.menuItemId === item.menuItemId);
+              if (existing) existing.quantity = item.quantity;
+            }
+            newCart = newCart.filter((c) => c.quantity > 0);
+            break;
+          }
+          case "checkout": {
+            if (newCart.length === 0) break;
+
+            try {
+              if (activeOrderId) {
+                // ─── آپدیت سفارش موجود ───
+                if (isConfirmed) {
+                  // فقط آیتم‌های جدید اضافه کن
+                  const existingIds = new Set(existingOrderItems.map((i: any) => i.menuItemId));
+                  const newOnlyItems = newCart.filter(c => !existingIds.has(c.menuItemId));
+
+                  if (newOnlyItems.length > 0) {
+                    let extraTotal = 0;
+                    const newItemsData = newOnlyItems.map(c => {
+                      const sub = Number(c.price) * c.quantity;
+                      extraTotal += sub;
+                      return {
+                        orderId: activeOrderId!,
+                        menuItemId: c.menuItemId,
+                        name: c.name,
+                        price: c.price,
+                        quantity: c.quantity,
+                        subtotal: sub.toString(),
+                      };
+                    });
+                    await db.insert(orderItems).values(newItemsData);
+
+                    const currentOrder = await db.query.orders.findFirst({
+                      where: eq(orders.id, activeOrderId),
+                    });
+                    const newTotal = Number(currentOrder?.totalAmount || 0) + extraTotal;
+                    await db.update(orders)
+                      .set({ totalAmount: newTotal.toString(), updatedAt: new Date() })
+                      .where(eq(orders.id, activeOrderId));
+                  }
+                } else {
+                  // pending - همه چیز replace میشه
+                  await db.delete(orderItems).where(eq(orderItems.orderId, activeOrderId));
+                  const totalAmount = newCart.reduce((s, c) => s + Number(c.price) * c.quantity, 0);
+                  await db.insert(orderItems).values(
+                    newCart.map(c => ({
+                      orderId: activeOrderId!,
+                      menuItemId: c.menuItemId,
+                      name: c.name,
+                      price: c.price,
+                      quantity: c.quantity,
+                      subtotal: (Number(c.price) * c.quantity).toString(),
+                    }))
+                  );
+                  await db.update(orders)
+                    .set({ totalAmount: totalAmount.toString(), updatedAt: new Date() })
+                    .where(eq(orders.id, activeOrderId));
+                }
+                orderId = activeOrderId;
+              } else {
+                // ─── سفارش جدید ───
+                const totalAmount = newCart.reduce((s, c) => s + Number(c.price) * c.quantity, 0);
+                const [order] = await db.insert(orders).values({
+                  tenantId,
+                  tableNumber,
+                  totalAmount: totalAmount.toString(),
+                  status: "pending",
+                  isAiOrder: true,
+                }).returning();
+
+                await db.insert(orderItems).values(
+                  newCart.map(c => ({
+                    orderId: order.id,
+                    menuItemId: c.menuItemId,
+                    name: c.name,
+                    price: c.price,
+                    quantity: c.quantity,
+                    subtotal: (Number(c.price) * c.quantity).toString(),
+                  }))
+                );
+                orderId = order.id;
+              }
+
+              orderSubmitted = true;
+              newCart = [];
+            } catch (e) {
+              console.error('Checkout error:', e);
+              orderSubmitted = false;
+            }
+            break;
+          }
         }
       }
     }
 
+    // ذخیره conversation
     if (conversation) {
-      await db
-        .update(aiConversations)
-        .set({
-          messages: history,
-          updatedAt: new Date(),
-          cart: newCart as any,
-          orderId: orderId || conversation.orderId,
-        } as any)
+      await db.update(aiConversations)
+        .set({ messages: history, updatedAt: new Date(), cart: newCart as any, orderId } as any)
         .where(eq(aiConversations.id, conversation.id));
     } else {
-      conversation = (
-        await db
-          .insert(aiConversations)
-          .values({
-            tenantId,
-            sessionId,
-            messages: history,
-            cart: newCart as any,
-            orderId,
-          } as any)
-          .returning()
-      )[0];
+      conversation = (await db.insert(aiConversations).values({
+        tenantId, sessionId, messages: history, cart: newCart as any, orderId,
+      } as any).returning())[0];
     }
 
-    const displayMessage = aiMessage
-      .replace(/```order\n[\s\S]*?\n```/g, "")
-      .trim();
+    const displayMessage = aiMessage.replace(/```order\n[\s\S]*?\n```/g, "").trim();
 
     return {
       message: displayMessage,
@@ -411,6 +395,13 @@ export const aiService = {
       orderSubmitted,
       orderId,
       conversationId: conversation?.id,
+      // ─── اطلاعات سفارش فعال برای نمایش به مشتری ───
+      activeOrder: activeOrderId ? {
+        id: activeOrderId,
+        status: activeOrderStatus,
+        items: existingOrderItems,
+        isConfirmed,
+      } : null,
     };
   },
 
@@ -420,22 +411,9 @@ export const aiService = {
       db.select().from(orders).where(eq(orders.tenantId, tenantId)).limit(50),
     ]);
 
-    const topItems = [...items]
-      .sort((a, b) => (b.totalOrders || 0) - (a.totalOrders || 0))
-      .slice(0, 5);
-
-    const totalRevenue = recentOrders
-      .filter((o) => o.status === "delivered")
+    const topItems = [...items].sort((a, b) => (b.totalOrders || 0) - (a.totalOrders || 0)).slice(0, 5);
+    const totalRevenue = recentOrders.filter((o) => o.status === "delivered")
       .reduce((s, o) => s + Number(o.totalAmount), 0);
-
-    const context = `
-پرفروش‌ترین آیتم‌ها:
-${topItems.map((i) => `- ${i.name}: ${i.totalOrders} سفارش`).join("\n")}
-
-تعداد کل سفارشات: ${recentOrders.length}
-درآمد کل (تحویل شده): ${totalRevenue.toLocaleString("fa-IR")} تومان
-تعداد آیتم‌های منو: ${items.length}
-`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -443,7 +421,11 @@ ${topItems.map((i) => `- ${i.name}: ${i.totalOrders} سفارش`).join("\n")}
       messages: [
         {
           role: "system",
-          content: `تو یک مشاور کسب‌وکار هوشمند برای رستوران هستی. داده‌های رستوران:\n${context}\nتحلیل دقیق و عملی بده. به فارسی پاسخ بده.`,
+          content: `تو مشاور کسب‌وکار رستوران هستی.
+پرفروش‌ترین: ${topItems.map(i => `${i.name}: ${i.totalOrders} سفارش`).join(', ')}
+کل سفارشات: ${recentOrders.length}
+درآمد: ${totalRevenue.toLocaleString("fa-IR")} تومان
+تحلیل دقیق و عملی بده. فارسی پاسخ بده.`,
         },
         { role: "user", content: question },
       ],

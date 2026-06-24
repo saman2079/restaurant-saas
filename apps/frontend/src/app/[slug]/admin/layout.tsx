@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useAuthStore } from "@/lib/store/auth.store";
 import { cn } from "@/lib/utils";
 
+type Plan = "basic" | "pro" | "business";
+
 const ALL_NAV_ITEMS = [
   {
     href: `admin`,
@@ -19,6 +21,7 @@ const ALL_NAV_ITEMS = [
     label: "صندوق",
     icon: "💳",
     roles: ["owner", "cashier"],
+    plans: ["pro", "business"],
   },
   {
     href: `admin/orders`,
@@ -26,8 +29,18 @@ const ALL_NAV_ITEMS = [
     icon: "📋",
     roles: ["owner", "manager", "waiter", "chef"],
   },
-  { href: `admin/menu`, label: "منو", icon: "🍽️", roles: ["owner", "manager"] },
-  { href: `admin/staff`, label: "کارمندان", icon: "👥", roles: ["owner"] },
+  {
+    href: `admin/menu`,
+    label: "منو",
+    icon: "🍽️",
+    roles: ["owner", "manager"],
+  },
+  {
+    href: `admin/staff`,
+    label: "کارمندان",
+    icon: "👥",
+    roles: ["owner"],
+  },
   {
     href: `admin/tables`,
     label: "QR Code میزها",
@@ -39,6 +52,7 @@ const ALL_NAV_ITEMS = [
     label: "آمار",
     icon: "📈",
     roles: ["owner", "manager"],
+    plans: ["pro", "business"],
   },
   {
     href: `admin/profile`,
@@ -65,41 +79,58 @@ export default function AdminLayout({
   const router = useRouter();
   const pathname = usePathname();
   const { slug } = useParams<{ slug: string }>();
+
   const { user, token, clearAuth, _hasHydrated } = useAuthStore();
 
   useEffect(() => {
     if (!_hasHydrated) return;
+
     if (!token || !user) {
       router.push("/login");
       return;
     }
-    const allowed = ["owner", "manager", "waiter", "chef", "super_admin"];
-    if (!allowed.includes(user.role)) router.push("/login");
+
+    const allowed = [
+      "owner",
+      "manager",
+      "waiter",
+      "chef",
+      "cashier",
+      "super_admin",
+    ];
+
+    if (!allowed.includes(user.role)) {
+      router.push("/login");
+    }
   }, [_hasHydrated, token, user, router]);
 
-  if (!_hasHydrated)
+  if (!_hasHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
       </div>
     );
+  }
 
   if (!user || !token) return null;
 
-  const navItems = ALL_NAV_ITEMS.filter((item) =>
-    item.roles.includes(user.role),
-  ).map((item) => ({ ...item, href: `/${slug}/${item.href}` }));
+  const userPlan = (user as any).plan as Plan | undefined;
+
+  const navItems = ALL_NAV_ITEMS.filter((item) => {
+    const roleAllowed = item.roles.includes(user.role);
+
+    const planAllowed =
+      !(item as any).plans ||
+      (item as any).plans.includes(userPlan);
+
+    return roleAllowed && planAllowed;
+  }).map((item) => ({
+    ...item,
+    href: `/${slug}/${item.href}`,
+  }));
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname.startsWith(href);
-
-  const roleLabels: Record<string, string> = {
-    owner: "مالک",
-    manager: "مدیر",
-    waiter: "گارسون",
-    chef: "آشپز",
-    super_admin: "سوپر ادمین",
-  };
 
   return (
     <div className="flex h-screen bg-gray-50" dir="rtl">
@@ -108,11 +139,21 @@ export default function AdminLayout({
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500 text-sm">
             🍽️
           </div>
+
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-gray-900">{slug}</p>
+            <p className="truncate text-sm font-medium text-gray-900">
+              {slug}
+            </p>
+
             <p className="text-xs text-gray-400">
               {roleLabels[user.role] || user.role}
             </p>
+
+            {userPlan && (
+              <p className="text-[10px] text-orange-500 mt-1">
+                {userPlan.toUpperCase()}
+              </p>
+            )}
           </div>
         </div>
 
@@ -125,7 +166,7 @@ export default function AdminLayout({
                 "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
                 isActive(item.href, item.exact)
                   ? "bg-orange-50 text-orange-600 font-medium"
-                  : "text-gray-600 hover:bg-gray-50",
+                  : "text-gray-600 hover:bg-gray-50"
               )}
             >
               <span className="text-base">{item.icon}</span>
@@ -139,8 +180,10 @@ export default function AdminLayout({
             href={`/${slug}`}
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
           >
-            <span>👁️</span> مشاهده منو
+            <span>👁️</span>
+            مشاهده منو
           </Link>
+
           <button
             onClick={() => {
               clearAuth();
@@ -148,7 +191,8 @@ export default function AdminLayout({
             }}
             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
           >
-            <span>🚪</span> خروج
+            <span>🚪</span>
+            خروج
           </button>
         </div>
       </aside>

@@ -53,6 +53,47 @@ function ChatClient({ slug }: { slug: string }) {
     setMounted(true);
   }, [slug]);
 
+  // جایگزین قسمت session useEffect کن
+  useEffect(() => {
+    // اول از cookie چک کن
+    const getCookie = (name: string) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop()?.split(";").shift();
+      return null;
+    };
+
+    const setCookie = (name: string, value: string, days = 30) => {
+      const expires = new Date(Date.now() + days * 864e5).toUTCString();
+      document.cookie = `${name}=${value}; expires=${expires}; path=/`;
+    };
+
+    // sessionId از cookie - ماندگار میمونه
+    let storedSessionId = getCookie(`sessionId-${slug}`);
+    if (storedSessionId) {
+      setSessionId(storedSessionId);
+    } else {
+      const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      setCookie(`sessionId-${slug}`, newSessionId);
+      localStorage.setItem(`sessionId-${slug}`, newSessionId);
+      setSessionId(newSessionId);
+    }
+
+    // پیام‌ها از localStorage
+    const storedMessages = localStorage.getItem(`messages-${slug}`);
+    if (storedMessages) {
+      try {
+        setMessages(JSON.parse(storedMessages));
+      } catch {}
+    }
+
+    if (tableNumber) {
+      localStorage.setItem(`tableNumber-${slug}`, String(tableNumber));
+    }
+
+    setMounted(true);
+  }, [slug]);
+
   // ذخیره پیام‌ها
   useEffect(() => {
     if (!mounted) return;
