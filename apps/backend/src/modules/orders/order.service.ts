@@ -96,11 +96,15 @@ export const orderService = {
 
     const fullOrder = await this.getById(order.id, tenantId);
 
+    const needPayment = totalAmount >= PAYMENT_THRESHOLD;
+
     if (io) {
-      io.to(`tenant:${tenantId}`).emit("new-order", fullOrder);
-      // اگه awaiting_payment بود، به صندوق emit کن
-      if (paymentStatus === "pending") {
+      if (needPayment) {
+        // فقط صندوق
         io.to(`tenant:${tenantId}`).emit("payment-required", fullOrder);
+      } else {
+        // مستقیم آشپزخانه
+        io.to(`tenant:${tenantId}`).emit("new-order", fullOrder);
       }
     }
 

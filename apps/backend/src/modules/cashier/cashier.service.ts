@@ -42,6 +42,8 @@ export const cashierService = {
         });
 
         io.to(`tenant:${tenantId}`).emit("order-updated", order);
+
+        io.to(`tenant:${tenantId}`).emit("new-order", order);
       }
     }
 
