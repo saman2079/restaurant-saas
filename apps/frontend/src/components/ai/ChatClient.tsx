@@ -24,6 +24,8 @@ function ChatClient({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState("");
   const [mounted, setMounted] = useState(false);
+  const [activeOrder, setActiveOrder] = useState<any>(null);
+
   const socketRef = useRef<Socket | null>(null);
 
   // لود همه چیز از localStorage یه بار
@@ -164,6 +166,7 @@ function ChatClient({ slug }: { slug: string }) {
 
     const userMessage: Message = { role: "user", content: message };
     setMessages((prev) => [...prev, userMessage]);
+
     setMessage("");
     setLoading(true);
 
@@ -198,9 +201,14 @@ function ChatClient({ slug }: { slug: string }) {
         menuCards: data.data.menuCards || [],
       };
 
+      if (data.data.activeOrder) {
+        setActiveOrder(data.data.activeOrder);
+      }
+
       if (data.data.orderSubmitted && data.data.orderId) {
         localStorage.setItem(`current-order-${slug}`, data.data.orderId);
         socketRef.current?.emit("join-order", data.data.orderId);
+        setActiveOrder({ id: data.data.orderId, status: "pending" });
       }
 
       setMessages((prev) => [...prev, aiMessage]);

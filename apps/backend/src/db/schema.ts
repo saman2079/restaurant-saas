@@ -23,6 +23,13 @@ export const userRoleEnum = pgEnum("user_role", [
   "cashier",
 ]);
 
+export const paymentStatusEnum = pgEnum("payment_status", [
+  "not_required",
+  "pending",
+  "paid",
+  "failed",
+]);
+
 export const orderStatusEnum = pgEnum("order_status", [
   "pending",
   "confirmed",
@@ -30,6 +37,7 @@ export const orderStatusEnum = pgEnum("order_status", [
   "ready",
   "delivered",
   "cancelled",
+  "awaiting_payment",
 ]);
 
 export const planEnum = pgEnum("plan", ["basic", "pro", "business"]);
@@ -165,7 +173,7 @@ export const orders = pgTable(
   "orders",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    paidAt: timestamp('paid_at'),
+    paidAt: timestamp("paid_at"),
     tenantId: uuid("tenant_id")
       .references(() => tenants.id, { onDelete: "cascade" })
       .notNull(),
@@ -175,6 +183,9 @@ export const orders = pgTable(
     tableNumber: integer("table_number"),
     rejectionReason: text("rejection_reason"), // ← اضافه کن
     status: orderStatusEnum("status").default("pending").notNull(),
+    paymentStatus: paymentStatusEnum("payment_status")
+      .default("not_required")
+      .notNull(),
     totalAmount: decimal("total_amount", { precision: 12, scale: 0 }).notNull(),
     notes: text("notes"),
     customerName: varchar("customer_name", { length: 255 }),

@@ -1,35 +1,40 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useParams } from 'next/navigation'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { apiClient } from '@/lib/api/client'
-import { AppErrorBoundary } from '@/components/ui/error-boundary'
-import { formatPrice } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import toast from 'react-hot-toast'
+import { useState } from "react";
+import { useParams } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/client";
+import { AppErrorBoundary } from "@/components/ui/error-boundary";
+import { formatPrice } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import toast from "react-hot-toast";
 
 interface TableSummary {
-  tableNumber: number
-  orderCount: number
-  totalAmount: number
-  status: string
-  orders: any[]
+  tableNumber: number;
+  orderCount: number;
+  totalAmount: number;
+  status: string;
+  orders: any[];
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  preparing: 'bg-blue-100 text-blue-700',
-  ready: 'bg-green-100 text-green-700',
-  delivered: 'bg-gray-100 text-gray-700',
-}
+  awaiting_payment: "bg-red-100 text-red-700",
+  confirmed: "bg-emerald-100 text-emerald-700",
+  pending: "bg-yellow-100 text-yellow-700",
+  preparing: "bg-blue-100 text-blue-700",
+  ready: "bg-green-100 text-green-700",
+  delivered: "bg-gray-100 text-gray-700",
+};
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: 'در انتظار',
-  preparing: 'در حال آماده‌سازی',
-  ready: 'آماده تحویل',
-  delivered: 'تحویل شده',
-}
+  awaiting_payment: "در انتظار پرداخت",
+  confirmed: "پرداخت شده",
+  pending: "در انتظار تایید",
+  preparing: "در حال آماده سازی",
+  ready: "آماده تحویل",
+  delivered: "تحویل شده",
+  cancelled: "لغو شده",
+};
 
 function ReceiptModal({
   tableNumber,
@@ -37,24 +42,27 @@ function ReceiptModal({
   onClose,
   onConfirmClose,
 }: {
-  tableNumber: number
-  slug: string
-  onClose: () => void
-  onConfirmClose: () => void
+  tableNumber: number;
+  slug: string;
+  onClose: () => void;
+  onConfirmClose: () => void;
 }) {
   const { data, isLoading } = useQuery({
-    queryKey: ['table-detail', slug, tableNumber],
-    queryFn: () => apiClient.get(`/${slug}/cashier/tables/${tableNumber}`)
-      .then(r => r.data.data),
-  })
+    queryKey: ["table-detail", slug, tableNumber],
+    queryFn: () =>
+      apiClient
+        .get(`/${slug}/cashier/tables/${tableNumber}`)
+        .then((r) => r.data.data),
+  });
 
-  const handlePrint = () => window.print()
+  const handlePrint = () => window.print();
 
-  if (isLoading) return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
-    </div>
-  )
+  if (isLoading)
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+      </div>
+    );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -64,7 +72,7 @@ function ReceiptModal({
           <div className="text-center mb-4">
             <h2 className="text-base font-bold">فاکتور رستوران</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              میز {tableNumber} | {new Date().toLocaleString('fa-IR')}
+              میز {tableNumber} | {new Date().toLocaleString("fa-IR")}
             </p>
           </div>
 
@@ -84,11 +92,15 @@ function ReceiptModal({
           <div className="border-t border-gray-200 pt-3 mt-1">
             <div className="flex justify-between font-bold">
               <span>جمع کل</span>
-              <span className="text-orange-500">{formatPrice(data?.totalAmount)}</span>
+              <span className="text-orange-500">
+                {formatPrice(data?.totalAmount)}
+              </span>
             </div>
           </div>
 
-          <p className="text-center text-xs text-gray-400 mt-4">ممنون از حضور شما 🙏</p>
+          <p className="text-center text-xs text-gray-400 mt-4">
+            ممنون از حضور شما 🙏
+          </p>
         </div>
 
         <div className="border-t border-gray-100 p-4 flex gap-2 print:hidden">
@@ -100,54 +112,51 @@ function ReceiptModal({
           >
             🖨️ پرینت
           </Button>
-          <Button
-            size="sm"
-            onClick={onConfirmClose}
-            className="flex-1"
-          >
+          <Button size="sm" onClick={onConfirmClose} className="flex-1">
             ✅ بستن میز
           </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={onClose}
-          >
+          <Button variant="secondary" size="sm" onClick={onClose}>
             انصراف
           </Button>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export default function CashierPage() {
-  const { slug } = useParams<{ slug: string }>()
-  const qc = useQueryClient()
-  const [selectedTable, setSelectedTable] = useState<number | null>(null)
+  const { slug } = useParams<{ slug: string }>();
+  const qc = useQueryClient();
+  const [selectedTable, setSelectedTable] = useState<number | null>(null);
 
   const { data: tables = [], isLoading } = useQuery({
-    queryKey: ['cashier-tables', slug],
-    queryFn: () => apiClient.get(`/${slug}/cashier/tables`).then(r => r.data.data),
+    queryKey: ["cashier-tables", slug],
+    queryFn: () =>
+      apiClient.get(`/${slug}/cashier/tables`).then((r) => r.data.data),
     refetchInterval: 15000,
-  })
+  });
 
   const closeMutation = useMutation({
     mutationFn: (tableNumber: number) =>
-      apiClient.post(`/${slug}/cashier/tables/${tableNumber}/close`).then(r => r.data),
+      apiClient
+        .post(`/${slug}/cashier/tables/${tableNumber}/close`)
+        .then((r) => r.data),
     onSuccess: (_, tableNumber) => {
-      qc.invalidateQueries({ queryKey: ['cashier-tables', slug] })
-      setSelectedTable(null)
-      toast.success(`میز ${tableNumber} بسته شد ✅`)
+      qc.invalidateQueries({ queryKey: ["cashier-tables", slug] });
+      setSelectedTable(null);
+      toast.success(`میز ${tableNumber} بسته شد ✅`);
     },
-    onError: () => toast.error('خطا در بستن میز'),
-  })
+    onError: () => toast.error("خطا در بستن میز"),
+  });
 
   return (
     <AppErrorBoundary>
       <div className="p-6 space-y-4" dir="rtl">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-medium text-gray-900">صندوق</h1>
-          <span className="text-sm text-gray-500">{tables.length} میز فعال</span>
+          <span className="text-sm text-gray-500">
+            {tables.length} میز فعال
+          </span>
         </div>
 
         {isLoading ? (
@@ -170,13 +179,17 @@ export default function CashierPage() {
                   <h2 className="text-sm font-medium text-gray-900">
                     میز {table.tableNumber}
                   </h2>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[table.status] || 'bg-gray-100 text-gray-600'}`}>
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[table.status] || "bg-gray-100 text-gray-600"}`}
+                  >
                     {STATUS_LABELS[table.status] || table.status}
                   </span>
                 </div>
 
                 <div className="space-y-0.5">
-                  <p className="text-xs text-gray-500">{table.orderCount} سفارش</p>
+                  <p className="text-xs text-gray-500">
+                    {table.orderCount} سفارش
+                  </p>
                   <p className="text-base font-bold text-orange-500">
                     {formatPrice(table.totalAmount)}
                   </p>
@@ -186,7 +199,11 @@ export default function CashierPage() {
                   onClick={() => setSelectedTable(table.tableNumber)}
                   className="w-full text-xs bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 transition-colors"
                 >
-                  صدور فاکتور
+                  {table.status === "awaiting_payment"
+                    ? "💳 دریافت وجه"
+                    : table.status === "confirmed"
+                      ? "🧾 صدور فاکتور"
+                      : "مشاهده فاکتور"}
                 </button>
               </div>
             ))}
@@ -203,5 +220,5 @@ export default function CashierPage() {
         />
       )}
     </AppErrorBoundary>
-  )
+  );
 }

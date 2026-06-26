@@ -1,15 +1,56 @@
-import { db } from '../../config/database';
-import { orders, orderItems } from '../../db/schema';
-import { eq, and, isNull, inArray } from 'drizzle-orm';
+import { db } from "../../config/database";
+import { orders, orderItems } from "../../db/schema";
+import { eq, and, isNull, inArray } from "drizzle-orm";
 
 export const cashierService = {
+  async payTable(tenantId: string, tableNumber: number) {
+    const tableOrders = await db
+      .select()
+      .from(orders)
+      .where(
+        and(
+          eq(orders.tenantId, tenantId),
+          eq(orders.tableNumber, tableNumber),
+          isNull(orders.paidAt),
+        ),
+      );
+
+    if (!tableOrders.length) {
+      throw new Error("سفارشی پیدا نشد");
+    }
+
+    const ids = tableOrders.map((o) => o.id);
+
+    await db
+      .update(orders)
+      .set({
+        paidAt: new Date(),
+        status: "confirmed",
+        updatedAt: new Date(),
+      })
+      .where(inArray(orders.id, ids));
+
+    const io = (global as any).io;
+
+    if (io) {
+      for (const id of ids) {
+        const order = await db.query.orders.findFirst({
+          where: eq(orders.id, id),
+          with: {
+            items: true,
+          },
+        });
+
+        io.to(`tenant:${tenantId}`).emit("order-updated", order);
+      }
+    }
+
+    return true;
+  },
   // همه میزهای فعال (سفارش دارن و پرداخت نشدن)
   async getActiveTables(tenantId: string) {
     const activeOrders = await db.query.orders.findMany({
-      where: and(
-        eq(orders.tenantId, tenantId),
-        isNull(orders.paidAt),
-      ),
+      where: and(eq(orders.tenantId, tenantId), isNull(orders.paidAt)),
       with: { items: true },
       orderBy: orders.tableNumber,
     });
@@ -34,15 +75,23 @@ export const cashierService = {
       table.statuses.add(order.status);
     }
 
-    return Array.from(tablesMap.values()).map(table => ({
+    return Array.from(tablesMap.values()).map((table) => ({
       tableNumber: table.tableNumber,
       orderCount: table.orders.length,
       totalAmount: table.totalAmount,
       orders: table.orders,
       // وضعیت کلی میز
-      status: table.statuses.has('pending') ? 'pending' :
-              table.statuses.has('preparing') ? 'preparing' :
-              table.statuses.has('ready') ? 'ready' : 'delivered',
+      status: table.statuses.has("awaiting_payment")
+        ? "awaiting_payment"
+        : table.statuses.has("confirmed")
+          ? "confirmed"
+          : table.statuses.has("preparing")
+            ? "preparing"
+            : table.statuses.has("ready")
+              ? "ready"
+              : table.statuses.has("pending")
+                ? "pending"
+                : "delivered",
     }));
   },
 
@@ -58,7 +107,8 @@ export const cashierService = {
     });
 
     const totalAmount = tableOrders.reduce(
-      (sum, o) => sum + Number(o.totalAmount), 0
+      (sum, o) => sum + Number(o.totalAmount),
+      0,
     );
 
     return {
@@ -95,38 +145,30 @@ export const cashierService = {
 
   // بستن میز و صدور فاکتور
   async closeTable(tenantId: string, tableNumber: number) {
-    const tableOrders = await db.select()
+    const remain = await db
+      .select()
       .from(orders)
-      .where(and(
-        eq(orders.tenantId, tenantId),
-        eq(orders.tableNumber, tableNumber),
-        isNull(orders.paidAt),
-      ));
+      .where(
+        and(
+          eq(orders.tenantId, tenantId),
+          eq(orders.tableNumber, tableNumber),
+          isNull(orders.completedAt),
+        ),
+      );
 
-    if (tableOrders.length === 0) {
-      throw new Error('سفارشی برای این میز پیدا نشد');
+    if (remain.some((o) => o.status !== "delivered")) {
+      throw new Error("هنوز سفارش‌های تحویل نشده وجود دارد");
     }
 
-    const orderIds = tableOrders.map(o => o.id);
-
-    // همه سفارشات میز رو پرداخت شده علامت بزن
-    await db.update(orders)
+    await db
+      .update(orders)
       .set({
-        paidAt: new Date(),
-        status: 'delivered',
-        updatedAt: new Date(),
+        completedAt: new Date(),
       })
-      .where(inArray(orders.id, orderIds));
+      .where(
+        and(eq(orders.tenantId, tenantId), eq(orders.tableNumber, tableNumber)),
+      );
 
-    const totalAmount = tableOrders.reduce(
-      (sum, o) => sum + Number(o.totalAmount), 0
-    );
-
-    return {
-      tableNumber,
-      closedAt: new Date(),
-      totalAmount,
-      orderCount: tableOrders.length,
-    };
+    return true;
   },
 };

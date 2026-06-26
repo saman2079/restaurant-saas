@@ -1,10 +1,11 @@
 import { Response, NextFunction } from 'express';
+import { eq } from 'drizzle-orm';
+
 import { AuthRequest } from '../types';
 import { db } from '../config/database';
-import { tenants } from '../db/schema';
-import { eq } from 'drizzle-orm';
-import { sendError } from '../utils/response';
 import { redis } from '../config/redis';
+import { tenants } from '../db/schema';
+import { sendError } from '../utils/response';
 
 export const resolveTenant = async (
   req: AuthRequest,
@@ -17,28 +18,51 @@ export const resolveTenant = async (
       : typeof req.headers['x-tenant-slug'] === 'string'
         ? req.headers['x-tenant-slug']
         : undefined;
+
   if (!slug) {
     return sendError(res, 'رستوران مشخص نشده', 400);
   }
 
-  // اول از Redis چک کن
+  let tenant: typeof tenants.$inferSelect | null = null;
+
+  // ==========================
+  // Redis Cache
+  // ==========================
   const cached = await redis.get(`tenant:${slug}`);
+
   if (cached) {
-    req.tenant = JSON.parse(cached);
-    req.tenantId = req.tenant.id;
-    return next();
+    tenant = JSON.parse(cached);
+  } else {
+    const [dbTenant] = await db
+      .select()
+      .from(tenants)
+      .where(eq(tenants.slug, slug));
+
+    if (!dbTenant || !dbTenant.isActive) {
+      return sendError(res, 'رستوران پیدا نشد', 404);
+    }
+
+    tenant = dbTenant;
+
+    // Cache for 5 minutes
+    await redis.setex(
+      `tenant:${slug}`,
+      300,
+      JSON.stringify(tenant)
+    );
   }
 
-  const [tenant] = await db.select().from(tenants).where(eq(tenants.slug, slug));
-
-  if (!tenant || !tenant.isActive) {
-    return sendError(res, 'رستوران پیدا نشد', 404);
+  // ==========================
+  // Security Check
+  // ==========================
+  if (req.user && req.user.role !== 'super_admin') {
+    if (req.user.tenantId !== tenant.id) {
+      return sendError(res, 'دسترسی غیرمجاز', 403);
+    }
   }
-
-  // کش کن برای ۵ دقیقه
-  await redis.setex(`tenant:${slug}`, 300, JSON.stringify(tenant));
 
   req.tenant = tenant;
   req.tenantId = tenant.id;
+
   next();
 };

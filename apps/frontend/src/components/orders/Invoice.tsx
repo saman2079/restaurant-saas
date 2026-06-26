@@ -82,6 +82,12 @@ export default function Invoice({ orderId, slug, onDone }: Props) {
         localStorage.removeItem(`current-order-${slug}`);
       }
     });
+    
+    socket.on("order-updated", (updatedOrder: any) => {
+      if (updatedOrder.id !== orderId) return;
+      setOrder(updatedOrder);
+      setStatus(updatedOrder.status);
+    });
 
     return () => {
       socket.disconnect();

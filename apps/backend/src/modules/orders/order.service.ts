@@ -10,60 +10,54 @@ export const setSocketIO = (socketIO: SocketServer) => {
   io = socketIO;
 };
 
+const PAYMENT_THRESHOLD = 500000; // ۵۰۰ هزار تومن
+
 export const orderService = {
-  async create(tenantId: string, data: {
-    tableNumber?: number;
-    sessionToken?: string;
-    tableId?: string;
-    customerName?: string;
-    notes?: string;
-    isAiOrder?: boolean;
-    items: Array<{ menuItemId: string; quantity: number; notes?: string }>;
-  }) {
-    // ─── امنیت: بدون میز اصلاً سفارش نمیگیریم ───
-    if (!data.tableNumber) {
-      throw new Error('TABLE_REQUIRED: شماره میز الزامی است');
+  async create(
+    tenantId: string,
+    data: {
+      tableNumber?: number;
+      sessionToken?: string;
+      items: Array<{ menuItemId: string; quantity: number; notes?: string }>;
+      customerName?: string;
+      notes?: string;
+      isAiOrder?: boolean;
+    },
+  ) {
+    if (data.tableNumber) {
+      if (!data.sessionToken) throw new Error("SESSION_REQUIRED");
+
+      const isValid = await tablesService.validateSession(
+        tenantId,
+        data.tableNumber,
+        data.sessionToken,
+      );
+      if (!isValid) throw new Error("SESSION_INVALID");
+
+      const activeOrder = await db.query.orders.findFirst({
+        where: and(
+          eq(orders.tenantId, tenantId),
+          eq(orders.tableNumber, data.tableNumber),
+          sql`${orders.status} NOT IN ('cancelled', 'delivered')`,
+          isNull(orders.paidAt),
+        ),
+        with: { items: true },
+      });
+
+      if (activeOrder)
+        throw new Error(`TABLE_HAS_ACTIVE_ORDER:${activeOrder.id}`);
     }
 
-    // ─── sessionToken باید باشه ───
-    if (!data.sessionToken) {
-      throw new Error('SESSION_REQUIRED: لطفاً QR کد میز را اسکن کنید');
-    }
-
-    // ─── session باید معتبر باشه ───
-    const isValid = await tablesService.validateSession(
-      tenantId,
-      data.tableNumber,
-      data.sessionToken,
-    );
-    if (!isValid) {
-      throw new Error('SESSION_INVALID: جلسه منقضی شده. لطفاً QR کد را دوباره اسکن کنید');
-    }
-
-    // ─── میز نباید سفارش فعال داشته باشه ───
-    const activeOrder = await db.query.orders.findFirst({
-      where: and(
-        eq(orders.tenantId, tenantId),
-        eq(orders.tableNumber, data.tableNumber),
-        sql`${orders.status} != 'cancelled'`,
-        isNull(orders.paidAt),
-      ),
-      with: { items: true },
-    });
-
-    if (activeOrder) {
-      throw new Error(`TABLE_HAS_ACTIVE_ORDER:${activeOrder.id}`);
-    }
-
-    // ─── ساخت سفارش ───
-    const menuItemsList = await db.select().from(menuItems)
+    const menuItemsList = await db
+      .select()
+      .from(menuItems)
       .where(eq(menuItems.tenantId, tenantId));
-    const menuMap = new Map(menuItemsList.map(i => [i.id, i]));
+    const menuMap = new Map(menuItemsList.map((i) => [i.id, i]));
 
     let totalAmount = 0;
-    const itemsData = data.items.map(item => {
+    const itemsData = data.items.map((item) => {
       const menuItem = menuMap.get(item.menuItemId);
-      if (!menuItem) throw new Error('آیتم پیدا نشد');
+      if (!menuItem) throw new Error("آیتم پیدا نشد");
       const subtotal = Number(menuItem.price) * item.quantity;
       totalAmount += subtotal;
       return {
@@ -76,32 +70,55 @@ export const orderService = {
       };
     });
 
-    const [order] = await db.insert(orders).values({
-      tenantId,
-      tableId: data.tableId,
-      tableNumber: data.tableNumber,
-      customerName: data.customerName,
-      notes: data.notes,
-      isAiOrder: data.isAiOrder || false,
-      totalAmount: totalAmount.toString(),
-      status: 'pending',
-    }).returning();
+    // اگه مبلغ بالای آستانه بود، status میشه awaiting_payment
+    const initialStatus = "pending";
 
-    await db.insert(orderItems).values(
-      itemsData.map(item => ({ ...item, orderId: order.id }))
-    );
+    const paymentStatus =
+      totalAmount >= PAYMENT_THRESHOLD ? "pending" : "not_required";
+
+    const [order] = await db
+      .insert(orders)
+      .values({
+        tenantId,
+        tableNumber: data.tableNumber,
+        customerName: data.customerName,
+        notes: data.notes,
+        isAiOrder: data.isAiOrder || false,
+        totalAmount: totalAmount.toString(),
+        status: initialStatus as any,
+        paymentStatus,
+      })
+      .returning();
+
+    await db
+      .insert(orderItems)
+      .values(itemsData.map((item) => ({ ...item, orderId: order.id })));
 
     const fullOrder = await this.getById(order.id, tenantId);
 
-    if (io) io.to(`tenant:${tenantId}`).emit('new-order', fullOrder);
+    if (io) {
+      io.to(`tenant:${tenantId}`).emit("new-order", fullOrder);
+      // اگه awaiting_payment بود، به صندوق emit کن
+      if (paymentStatus === "pending") {
+        io.to(`tenant:${tenantId}`).emit("payment-required", fullOrder);
+      }
+    }
 
     return fullOrder;
   },
 
   // ─── گرفتن سفارش فعال میز (برای مشتری) ───
-  async getActiveByTable(tenantId: string, tableNumber: number, sessionToken: string) {
-    const isValid = await tablesService.validateSession(tenantId, tableNumber, sessionToken);
-    if (!isValid) throw new Error('SESSION_INVALID');
+  async getActiveByTable(
+    tenantId: string,
+    tableNumber: number,
+    sessionToken: string,
+  ) {
+    const isValid = await tablesService.validateSession(
+      tenantId,
+      tableNumber,
+      sessionToken,
+    );
+    if (!isValid) throw new Error("SESSION_INVALID");
 
     const order = await db.query.orders.findFirst({
       where: and(
@@ -125,8 +142,12 @@ export const orderService = {
     newItems: Array<{ menuItemId: string; quantity: number; notes?: string }>,
   ) {
     // اعتبارسنجی session
-    const isValid = await tablesService.validateSession(tenantId, tableNumber, sessionToken);
-    if (!isValid) throw new Error('SESSION_INVALID');
+    const isValid = await tablesService.validateSession(
+      tenantId,
+      tableNumber,
+      sessionToken,
+    );
+    if (!isValid) throw new Error("SESSION_INVALID");
 
     const order = await db.query.orders.findFirst({
       where: and(
@@ -136,35 +157,39 @@ export const orderService = {
       ),
     });
 
-    if (!order) throw new Error('سفارش پیدا نشد');
-    if (order.paidAt) throw new Error('سفارش پرداخت شده، قابل ویرایش نیست');
+    if (!order) throw new Error("سفارش پیدا نشد");
+    if (order.paidAt) throw new Error("سفارش پرداخت شده، قابل ویرایش نیست");
 
-    const menuItemsList = await db.select().from(menuItems)
+    const menuItemsList = await db
+      .select()
+      .from(menuItems)
       .where(eq(menuItems.tenantId, tenantId));
-    const menuMap = new Map(menuItemsList.map(i => [i.id, i]));
+    const menuMap = new Map(menuItemsList.map((i) => [i.id, i]));
 
     // ─── وضعیت pending: همه چیز ویرایش میشه ───
-    if (order.status === 'pending') {
+    if (order.status === "pending") {
       return this._replaceItems(orderId, tenantId, newItems, menuMap);
     }
 
     // ─── وضعیت confirmed/preparing/ready: فقط اضافه کردن آیتم جدید ───
-    if (['confirmed', 'preparing', 'ready'].includes(order.status)) {
+    if (["confirmed", "preparing", "ready"].includes(order.status)) {
       const existingItems = await db.query.orderItems.findMany({
         where: eq(orderItems.orderId, orderId),
       });
-      const existingIds = new Set(existingItems.map(i => i.menuItemId));
+      const existingIds = new Set(existingItems.map((i) => i.menuItemId));
 
       // فقط آیتم‌های جدید (که قبلاً نبودن) قبول میکنیم
-      const addedItems = newItems.filter(i => !existingIds.has(i.menuItemId));
+      const addedItems = newItems.filter((i) => !existingIds.has(i.menuItemId));
       if (addedItems.length === 0) {
-        throw new Error('EDIT_RESTRICTED: بعد از تایید آشپز فقط می‌توانید آیتم جدید اضافه کنید');
+        throw new Error(
+          "EDIT_RESTRICTED: بعد از تایید آشپز فقط می‌توانید آیتم جدید اضافه کنید",
+        );
       }
 
       let totalAmount = Number(order.totalAmount);
-      const newItemsData = addedItems.map(item => {
+      const newItemsData = addedItems.map((item) => {
         const menuItem = menuMap.get(item.menuItemId);
-        if (!menuItem) throw new Error('آیتم پیدا نشد');
+        if (!menuItem) throw new Error("آیتم پیدا نشد");
         const subtotal = Number(menuItem.price) * item.quantity;
         totalAmount += subtotal;
         return {
@@ -179,16 +204,17 @@ export const orderService = {
       });
 
       await db.insert(orderItems).values(newItemsData);
-      await db.update(orders)
+      await db
+        .update(orders)
         .set({ totalAmount: totalAmount.toString(), updatedAt: new Date() })
         .where(eq(orders.id, orderId));
 
       const fullOrder = await this.getById(orderId, tenantId);
-      if (io) io.to(`tenant:${tenantId}`).emit('order-updated', fullOrder);
+      if (io) io.to(`tenant:${tenantId}`).emit("order-updated", fullOrder);
       return fullOrder;
     }
 
-    throw new Error('EDIT_NOT_ALLOWED: سفارش قابل ویرایش نیست');
+    throw new Error("EDIT_NOT_ALLOWED: سفارش قابل ویرایش نیست");
   },
 
   async _replaceItems(
@@ -200,9 +226,9 @@ export const orderService = {
     await db.delete(orderItems).where(eq(orderItems.orderId, orderId));
 
     let totalAmount = 0;
-    const itemsData = newItems.map(item => {
+    const itemsData = newItems.map((item) => {
       const menuItem = menuMap.get(item.menuItemId);
-      if (!menuItem) throw new Error('آیتم پیدا نشد');
+      if (!menuItem) throw new Error("آیتم پیدا نشد");
       const subtotal = Number(menuItem.price) * item.quantity;
       totalAmount += subtotal;
       return {
@@ -217,16 +243,20 @@ export const orderService = {
     });
 
     await db.insert(orderItems).values(itemsData);
-    await db.update(orders)
+    await db
+      .update(orders)
       .set({ totalAmount: totalAmount.toString(), updatedAt: new Date() })
       .where(eq(orders.id, orderId));
 
     const fullOrder = await this.getById(orderId, tenantId);
-    if (io) io.to(`tenant:${tenantId}`).emit('order-updated', fullOrder);
+    if (io) io.to(`tenant:${tenantId}`).emit("order-updated", fullOrder);
     return fullOrder;
   },
 
-  async getAll(tenantId: string, filters?: { status?: string; page?: number; limit?: number }) {
+  async getAll(
+    tenantId: string,
+    filters?: { status?: string; page?: number; limit?: number },
+  ) {
     const page = filters?.page || 1;
     const limit = filters?.limit || 50;
     const offset = (page - 1) * limit;
@@ -245,7 +275,7 @@ export const orderService = {
       where: and(eq(orders.id, id), eq(orders.tenantId, tenantId)),
       with: { items: true },
     });
-    if (!result) throw new Error('سفارش پیدا نشد');
+    if (!result) throw new Error("سفارش پیدا نشد");
     return result;
   },
 
@@ -254,19 +284,25 @@ export const orderService = {
       where: eq(orders.id, id),
       with: { items: true },
     });
-    if (!result) throw new Error('سفارش پیدا نشد');
+    if (!result) throw new Error("سفارش پیدا نشد");
     return result;
   },
 
-  async updateStatus(id: string, tenantId: string, status: string, userId: string, rejectionReason?: string) {
+  async updateStatus(
+    id: string,
+    tenantId: string,
+    status: string,
+    userId: string,
+    rejectionReason?: string,
+  ) {
     const [updated] = await db
       .update(orders)
       .set({
         status: status as any,
         updatedAt: new Date(),
         assignedTo: userId,
-        ...(status === 'delivered' && { completedAt: new Date() }),
-        ...(status === 'cancelled' && rejectionReason && { rejectionReason }),
+        ...(status === "delivered" && { completedAt: new Date() }),
+        ...(status === "cancelled" && rejectionReason && { rejectionReason }),
       })
       .where(and(eq(orders.id, id), eq(orders.tenantId, tenantId)))
       .returning();
@@ -274,27 +310,35 @@ export const orderService = {
     const fullOrder = await this.getById(id, tenantId);
 
     if (io) {
-      io.to(`tenant:${tenantId}`).emit('order-updated', fullOrder);
-      io.to(`order:${id}`).emit('order-status-changed', {
+      io.to(`tenant:${tenantId}`).emit("order-updated", fullOrder);
+      io.to(`order:${id}`).emit("order-status-changed", {
         orderId: id,
         status: updated.status,
-        rejectionReason: (updated as any).rejectionReason || '',
+        rejectionReason: (updated as any).rejectionReason || "",
       });
     }
 
     return fullOrder;
   },
 
-  async updateItems(id: string, tenantId: string, newItems: Array<{ menuItemId: string; quantity: number; notes?: string }>) {
+  async updateItems(
+    id: string,
+    tenantId: string,
+    newItems: Array<{ menuItemId: string; quantity: number; notes?: string }>,
+  ) {
     const order = await db.query.orders.findFirst({
       where: and(eq(orders.id, id), eq(orders.tenantId, tenantId)),
     });
 
-    if (!order) throw new Error('سفارش پیدا نشد');
-    if (order.status !== 'pending') throw new Error('سفارش دیگر قابل ویرایش نیست');
+    if (!order) throw new Error("سفارش پیدا نشد");
+    if (order.status !== "pending")
+      throw new Error("سفارش دیگر قابل ویرایش نیست");
 
-    const menuItemsList = await db.select().from(menuItems).where(eq(menuItems.tenantId, tenantId));
-    const menuMap = new Map(menuItemsList.map(i => [i.id, i]));
+    const menuItemsList = await db
+      .select()
+      .from(menuItems)
+      .where(eq(menuItems.tenantId, tenantId));
+    const menuMap = new Map(menuItemsList.map((i) => [i.id, i]));
 
     return this._replaceItems(id, tenantId, newItems, menuMap);
   },
