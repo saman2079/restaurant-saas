@@ -1,6 +1,6 @@
 import { db } from "../../config/database";
 import { orders, orderItems } from "../../db/schema";
-import { eq, and, isNull, inArray, not } from "drizzle-orm";
+import { eq, and, isNull, isNotNull, inArray, sql } from "drizzle-orm";
 
 const PAYMENT_THRESHOLD = 500000;
 
@@ -28,8 +28,6 @@ export const cashierService = {
       0,
     );
 
-    // بالای ۵۰۰: پرداخت ثبت میشه، آشپزخونه شروع میکنه (status دست نمیخوره تا closeTable)
-    // زیر ۵۰۰: پرداخت + بستن میز یکجا
     const isAboveThreshold = totalAmount >= PAYMENT_THRESHOLD;
 
     await db
@@ -37,8 +35,8 @@ export const cashierService = {
       .set({
         paidAt: new Date(),
         paymentStatus: "paid",
-        // برای بالای ۵۰۰: status رو دست نزن تا آشپزخونه کارشو بکنه
-        // برای زیر ۵۰۰: confirmed بزن چون نیازی به آشپزخونه نیست
+        // زیر ۵۰۰: confirmed بزن (آشپزخونه نمیخواد)
+        // بالای ۵۰۰: status دست نزن، آشپزخونه باید کارشو بکنه
         ...(isAboveThreshold ? {} : { status: "confirmed" as any }),
         updatedAt: new Date(),
       })
@@ -59,13 +57,20 @@ export const cashierService = {
     return { success: true, isAboveThreshold };
   },
 
-  // همه میزهای فعال: سفارش دارن، پرداخت نشدن، بسته نشدن
+  /**
+   * میزهای فعال صندوق:
+   * ۱. سفارش دارن و هنوز بسته نشدن (completedAt IS NULL)
+   * ۲. یا هنوز پرداخت نشدن (paidAt IS NULL = منتظر پرداخت)
+   * ۳. یا پرداخت شدن ولی هنوز بسته نشدن (paid + completedAt IS NULL = بالای ۵۰۰ در آشپزخونه)
+   * → یعنی فقط completedAt IS NULL کافیه، paidAt مهم نیست
+   */
   async getActiveTables(tenantId: string) {
     const activeOrders = await db.query.orders.findMany({
       where: and(
         eq(orders.tenantId, tenantId),
-        isNull(orders.paidAt),
         isNull(orders.completedAt),
+        // سفارش کنسل شده نشون نده
+        sql`${orders.status} != 'cancelled'`,
       ),
       with: { items: true },
       orderBy: orders.tableNumber,
@@ -81,6 +86,7 @@ export const cashierService = {
           orders: [],
           totalAmount: 0,
           statuses: new Set(),
+          isPaid: false,
         });
       }
 
@@ -88,21 +94,23 @@ export const cashierService = {
       table.orders.push(order);
       table.totalAmount += Number(order.totalAmount);
       table.statuses.add(order.status);
+      if (order.paidAt) table.isPaid = true;
     }
 
     return Array.from(tablesMap.values()).map((table) => ({
       tableNumber: table.tableNumber,
       orderCount: table.orders.length,
       totalAmount: table.totalAmount,
+      isPaid: table.isPaid,
       orders: table.orders,
       status: table.statuses.has("awaiting_payment")
         ? "awaiting_payment"
-        : table.statuses.has("confirmed")
-          ? "confirmed"
-          : table.statuses.has("preparing")
-            ? "preparing"
-            : table.statuses.has("ready")
-              ? "ready"
+        : table.statuses.has("preparing")
+          ? "preparing"
+          : table.statuses.has("ready")
+            ? "ready"
+            : table.statuses.has("confirmed")
+              ? "confirmed"
               : table.statuses.has("pending")
                 ? "pending"
                 : "delivered",
@@ -114,8 +122,8 @@ export const cashierService = {
       where: and(
         eq(orders.tenantId, tenantId),
         eq(orders.tableNumber, tableNumber),
-        isNull(orders.paidAt),
         isNull(orders.completedAt),
+        sql`${orders.status} != 'cancelled'`,
       ),
       with: { items: true },
     });
@@ -125,10 +133,15 @@ export const cashierService = {
       0,
     );
 
+    const isPaid = tableOrders.some((o) => o.paidAt !== null);
+    const isAboveThreshold = totalAmount >= PAYMENT_THRESHOLD;
+
     return {
       tableNumber,
       orders: tableOrders,
       totalAmount,
+      isPaid,
+      isAboveThreshold,
       itemsSummary: this.summarizeItems(tableOrders),
     };
   },
@@ -156,10 +169,13 @@ export const cashierService = {
     return Array.from(itemsMap.values());
   },
 
-  // بستن میز — فقط بعد از اینکه سفارش‌های بالای ۵۰۰ هم آماده شدن
+  /**
+   * بستن میز:
+   * - زیر ۵۰۰: صندوق پول گرفته، سفارش confirmed شده → میشه بست
+   * - بالای ۵۰۰: آشپزخونه باید delivered کرده باشه → بعدش میشه بست
+   */
   async closeTable(tenantId: string, tableNumber: number) {
-    // سفارش‌هایی که پرداخت شدن ولی هنوز بسته نشدن
-    const paidOrders = await db
+    const remainingOrders = await db
       .select()
       .from(orders)
       .where(
@@ -167,22 +183,32 @@ export const cashierService = {
           eq(orders.tenantId, tenantId),
           eq(orders.tableNumber, tableNumber),
           isNull(orders.completedAt),
-          // paidAt داره (پرداخت شده)
+          sql`${orders.status} != 'cancelled'`,
         ),
       );
 
-    // اگه سفارشی هست که هنوز delivered یا cancelled نشده، نمیشه بست
-    const hasOpenOrders = paidOrders.some(
-      (o) => !["delivered", "cancelled", "confirmed"].includes(o.status),
-    );
+    if (!remainingOrders.length) {
+      throw new Error("سفارشی برای بستن پیدا نشد");
+    }
 
+    // بررسی اینکه همه پرداخت شدن
+    const hasUnpaid = remainingOrders.some((o) => !o.paidAt);
+    if (hasUnpaid) {
+      throw new Error("هنوز سفارش‌های پرداخت نشده وجود دارد");
+    }
+
+    // بررسی اینکه همه آماده و تحویل داده شدن
+    const closableStatuses = ["delivered", "confirmed"];
+    const hasOpenOrders = remainingOrders.some(
+      (o) => !closableStatuses.includes(o.status),
+    );
     if (hasOpenOrders) {
       throw new Error("هنوز سفارش‌هایی در حال آماده‌سازی وجود دارد");
     }
 
     await db
       .update(orders)
-      .set({ completedAt: new Date() })
+      .set({ completedAt: new Date(), updatedAt: new Date() })
       .where(
         and(
           eq(orders.tenantId, tenantId),
