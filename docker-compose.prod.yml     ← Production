@@ -3,63 +3,71 @@ services:
     image: postgres:16-alpine
     container_name: restaurant_db
     restart: unless-stopped
+
     environment:
       POSTGRES_DB: restaurant_db
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    networks:
-      - app-network
+
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin -d restaurant_db"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+    networks:
+      - app-network
+
   redis:
     image: redis:7-alpine
     container_name: restaurant_redis
     restart: unless-stopped
+
     volumes:
       - redis_data:/data
-    ports:
-      - "6379:6379"
-    networks:
-      - app-network
+
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+    networks:
+      - app-network
+
   backend:
     build:
       context: ./apps/backend
       dockerfile: Dockerfile
+
     container_name: restaurant_backend
+
     restart: unless-stopped
-    ports:
-      - "4000:4000"
+
+    env_file:
+      - .env.production
+
     environment:
+      NODE_ENV: production
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD}@postgres:5432/restaurant_db
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL}
-      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
-      NODE_ENV: development
+
+    expose:
+      - "4000"
+
     volumes:
       - uploads_data:/app/uploads
+
     depends_on:
       postgres:
         condition: service_healthy
+
       redis:
         condition: service_healthy
+
     networks:
       - app-network
 
@@ -67,15 +75,42 @@ services:
     build:
       context: ./apps/frontend
       dockerfile: Dockerfile
+
     container_name: restaurant_frontend
+
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+
     environment:
-      NEXT_PUBLIC_API_URL: http://menuwai.ir/api
-      NEXT_PUBLIC_SOCKET_URL: http://localhost:4000
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: /api
+      NEXT_PUBLIC_SOCKET_URL: /
+
+    expose:
+      - "3000"
+
     depends_on:
       - backend
+
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:1.27-alpine
+
+    container_name: restaurant_nginx
+
+    restart: unless-stopped
+
+    depends_on:
+      - frontend
+      - backend
+
+    ports:
+      - "80:80"
+
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+
     networks:
       - app-network
 
