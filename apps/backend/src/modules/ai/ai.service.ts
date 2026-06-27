@@ -68,7 +68,47 @@ interface CartItem {
   quantity: number;
 }
 
-const LOCKED_STATUSES = ["confirmed", "preparing", "ready"];
+/**
+ * منطق قفل بودن سفارش:
+ *
+ * سفارش زیر ۵۰۰:
+ *   - pending / delivered بدون paidAt → ویرایش آزاد (هنوز حساب نشده)
+ *   - confirmed / preparing / ready → قفل (وارد آشپزخونه شده)
+ *   - delivered با paidAt → قفل (تحویل و پرداخت شده)
+ *
+ * سفارش بالای ۵۰۰:
+ *   - بدون paidAt → ویرایش آزاد (صندوق هنوز حساب نگرفته)
+ *   - با paidAt → قفل (پرداخت شده، در آشپزخونه)
+ */
+function getOrderLockState(order: any): {
+  isLocked: boolean;
+  lockReason: string | null;
+} {
+  const total = Number(order.totalAmount);
+  const isAboveThreshold = total >= PAYMENT_THRESHOLD;
+
+  // اگه پرداخت شده، همیشه قفله
+  if (order.paidAt) {
+    return {
+      isLocked: true,
+      lockReason: "پرداخت انجام شده - در حال آماده‌سازی",
+    };
+  }
+
+  if (isAboveThreshold) {
+    // بالای ۵۰۰ و پرداخت نشده → آزاد
+    return { isLocked: false, lockReason: null };
+  } else {
+    // زیر ۵۰۰: وقتی وارد آشپزخونه شد قفل میشه
+    // pending و delivered (بدون paidAt) → آزاد
+    // confirmed / preparing / ready → قفل
+    const lockedStatuses = ["confirmed", "preparing", "ready"];
+    if (lockedStatuses.includes(order.status)) {
+      return { isLocked: true, lockReason: "سفارش در حال آماده‌سازی" };
+    }
+    return { isLocked: false, lockReason: null };
+  }
+}
 
 export const aiService = {
   async chat(
@@ -126,16 +166,20 @@ export const aiService = {
     // ─── ۳. سفارش فعال میز از DB ───
     let activeOrderId: string | null = null;
     let activeOrderStatus: string | null = null;
+    let activeOrderTotal: number = 0;
     let existingOrderItems: any[] = [];
     let isLocked = false;
+    let lockReason: string | null = null;
+    let isAboveThreshold = false;
 
     if (tableNumber) {
       const activeOrder = await db.query.orders.findFirst({
         where: and(
           eq(orders.tenantId, tenantId),
           eq(orders.tableNumber, tableNumber),
-          sql`${orders.status} NOT IN ('cancelled', 'delivered')`,
-          isNull(orders.paidAt),
+          // سفارش active = بسته نشده (completedAt نداره) و cancel نشده
+          isNull(orders.completedAt),
+          sql`${orders.status} != 'cancelled'`,
         ),
         with: { items: true },
       });
@@ -143,10 +187,14 @@ export const aiService = {
       if (activeOrder) {
         activeOrderId = activeOrder.id;
         activeOrderStatus = activeOrder.status;
+        activeOrderTotal = Number(activeOrder.totalAmount);
         existingOrderItems = (activeOrder as any).items || [];
-        isLocked = LOCKED_STATUSES.includes(activeOrder.status);
+        isAboveThreshold = activeOrderTotal >= PAYMENT_THRESHOLD;
 
-        // اگه conversation داشت orderId قدیمی، آپدیت کن
+        const lockState = getOrderLockState(activeOrder);
+        isLocked = lockState.isLocked;
+        lockReason = lockState.lockReason;
+
         if (conversation && (conversation as any).orderId !== activeOrderId) {
           cart = [];
           await db
@@ -155,7 +203,6 @@ export const aiService = {
             .where(eq(aiConversations.id, conversation.id));
         }
       } else {
-        // سفارش تموم شده یا نداشت
         if ((conversation as any)?.orderId) {
           cart = [];
           if (conversation) {
@@ -223,7 +270,7 @@ export const aiService = {
         : "خالی";
 
     const orderContext = activeOrderId
-      ? `سفارش فعال (ID: ${activeOrderId}) | وضعیت: ${activeOrderStatus}\nآیتم‌ها:\n` +
+      ? `سفارش فعال (ID: ${activeOrderId}) | وضعیت: ${activeOrderStatus} | مبلغ کل: ${activeOrderTotal.toLocaleString("fa-IR")} تومان\nآیتم‌ها:\n` +
         existingOrderItems
           .map(
             (i: any) =>
@@ -232,38 +279,68 @@ export const aiService = {
           .join("\n")
       : "بدون سفارش فعال";
 
-    const canEdit =
-      !activeOrderId ||
-      activeOrderStatus === "pending" ||
-      (activeOrderStatus === "confirmed" && !isLocked);
+    // وضعیت ویرایش‌پذیری برای prompt
+    let editabilityNote: string;
+    if (!tableNumber) {
+      editabilityNote = "⚠️ بدون میز - فقط نمایش منو";
+    } else if (!activeOrderId) {
+      editabilityNote = "✏️ هنوز سفارشی ثبت نشده - سبد خالیه";
+    } else if (!isLocked) {
+      editabilityNote = isAboveThreshold
+        ? `✏️ سفارش بالای ۵۰۰ هزار تومان - قابل ویرایش تا قبل از پرداخت در صندوق`
+        : `✏️ سفارش زیر ۵۰۰ هزار تومان - قابل ویرایش تا قبل از تایید صندوق`;
+    } else {
+      editabilityNote = `🔒 ${lockReason} - فقط آیتم جدید می‌توان اضافه کرد`;
+    }
 
-    const tableContext = tableNumber
-      ? `میز ${tableNumber} | ${
-          canEdit
-            ? "✏️ سفارش قبل از پرداخت قابل ویرایش است"
-            : `🔒 سفارش قفل شده (${activeOrderStatus}) - فقط آیتم جدید می‌توان اضافه کرد`
-        }`
-      : "⚠️ بدون میز - فقط نمایش منو";
+    // پیام راهنما برای مشتری بعد از checkout بالای ۵۰۰
+    const postCheckoutNote = isAboveThreshold
+      ? `
+پیام مهم بعد از checkout موفق (بالای ۵۰۰ هزار):
+حتماً به مشتری بگو: "سفارش شما ثبت شد. لطفاً برای پرداخت به صندوق مراجعه کنید، بعد از پرداخت سفارشتون وارد آشپزخونه میشه."
+این رو با لحن گرم و صمیمی بگو.`
+      : `
+پیام بعد از checkout موفق (زیر ۵۰۰ هزار):
+به مشتری بگو: "سفارش شما با موفقیت ثبت شد! به زودی آماده می‌شه."`;
 
-    const SYSTEM_PROMPT = `تو گارسون هوشمند رستوران "${tenant?.name || "رستوران"}" هستی. کوتاه، مودب و دقیق جواب بده.
+    const SYSTEM_PROMPT = `تو گارسون هوشمند رستوران "${tenant?.name || "رستوران"}" هستی. کوتاه، صمیمی و مستقیم جواب بده.
 
-وضعیت فعلی:
-- ${tableContext}
-- ${orderContext}
-- سبد AI: ${cartText}
+════════════════════════════════
+وضعیت لحظه‌ای (این اطلاعات از DB میاد و کاملاً به‌روزه، هر چیزی که قبلاً گفتی نادیده بگیر):
+- میز: ${tableNumber ?? "ندارد"}
+- سفارش فعال: ${activeOrderId ? `ID=${activeOrderId} | status=${activeOrderStatus} | مبلغ=${activeOrderTotal.toLocaleString("fa-IR")} تومان` : "ندارد"}
+- قفل بودن: ${isLocked ? `🔒 قفل (${lockReason})` : "🔓 آزاد - ویرایش مجاز است"}
+- آیتم‌های سفارش فعال:
+${existingOrderItems.length > 0 ? existingOrderItems.map((i: any) => `  • ${i.name} × ${i.quantity} [menuItemId: ${i.menuItemId}]`).join("\n") : "  (خالی)"}
+- سبد AI (هنوز ثبت نشده): ${cartText}
+════════════════════════════════
 
-قوانین سفت:
+${
+  !isLocked
+    ? `✅ سفارش فعلی قابل ویرایش است:
+- add_items: اضافه کردن آیتم جدید
+- remove_items: حذف آیتم
+- update_quantity: تغییر تعداد آیتم موجود در سبد یا سفارش
+اگه مشتری میگه "X تا بکنش"، یعنی update_quantity روی اون آیتم - انجام بده.`
+    : `🔒 سفارش قفل است (${lockReason}):
+- فقط add_items برای آیتم‌های کاملاً جدید مجاز است
+- هرگز نگو "سفارش نهایی شده" - بگو "سفارشت در حال آماده‌سازیه"`
+}
+
+قوانین رفتاری:
 1. ${!tableNumber ? "هیچ سفارشی ثبت نکن - فقط منو نشون بده" : "برای این میز سفارش ثبت کن"}
 2. فقط از IDهای موجود در منو استفاده کن
-3. ${
-      canEdit
-        ? "اگر سفارش هنوز پرداخت نشده است، add_items ،remove_items و update_quantity همگی مجاز هستند."
-        : "اگر سفارش وارد آشپزخانه شده است فقط add_items مجاز است."
-    }4. قبل از checkout، آیتم‌ها رو خلاصه کن و تایید بگیر
-5. فقط وقتی checkout موفق بود بگو "ثبت شد" - اگه ثبت نشد هرگز این رو نگو
-6. وقتی مشتری میگه "منو بده" یا "چی دارید" - کارت‌های منو نمایش داده میشه، فقط بگو "منو رو می‌بینید"
+3. وقتی آیتمی اضافه/حذف/ویرایش شد، خلاصه سبد رو بگو و بپرس "ثبت کنم؟"
+4. وقتی مشتری تایید کرد (بله/آره/بزن/ثبت کن/...)، بلافاصله checkout کن - هیچ پیام میانی ند
+5. هرگز نگو "الان ثبت میکنم" یا "صبر کن" - یا بپرس یا checkout کن
+6. وقتی مشتری "منو بده" میگه بگو "منو رو می‌بینید"
 
-فرمت‌های action:
+لحن:
+- بعد از ویرایش سبد: "خب، [خلاصه]. ثبت کنم؟"
+- بعد از checkout زیر ۵۰۰: "ثبت شد! 🎉 به زودی آماده میشه."
+- بعد از checkout بالای ۵۰۰: "ثبت شد! برای پرداخت به صندوق مراجعه کن. 🍽️"
+
+فرمت action:
 افزودن: \`\`\`order
 {"action":"add_items","items":[{"menuItemId":"EXACT_ID","name":"نام","quantity":1}]}
 \`\`\`
@@ -273,11 +350,11 @@ ${
 {"action":"remove_items","items":[{"menuItemId":"ID","name":"نام"}]}
 \`\`\`
 تغییر تعداد: \`\`\`order
-{"action":"update_quantity","items":[{"menuItemId":"ID","name":"نام","quantity":2}]}
+{"action":"update_quantity","items":[{"menuItemId":"ID","name":"نام","quantity":3}]}
 \`\`\``
     : ""
 }
-ثبت (فقط بعد از تایید): \`\`\`order
+ثبت نهایی (فقط بعد از تایید مشتری): \`\`\`order
 {"action":"checkout"}
 \`\`\`
 
@@ -318,6 +395,7 @@ ${menuContext}
     let orderId: string | null = activeOrderId;
 
     if (orderAction && tableNumber) {
+      // بررسی مجاز بودن action
       if (isLocked && !["add_items", "checkout"].includes(orderAction.action)) {
         console.warn(`Blocked ${orderAction.action} on locked order`);
         orderAction = null;
@@ -331,6 +409,8 @@ ${menuContext}
                 (m) => m.id === item.menuItemId,
               );
               if (!menuItem) continue;
+
+              // اگه قفله، فقط آیتم‌های کاملاً جدید (که توی سفارش نیستن) اضافه کن
               if (
                 isLocked &&
                 existingOrderItems.some(
@@ -338,6 +418,7 @@ ${menuContext}
                 )
               )
                 continue;
+
               const existing = newCart.find(
                 (c) => c.menuItemId === item.menuItemId,
               );
@@ -361,10 +442,31 @@ ${menuContext}
           }
           case "update_quantity": {
             for (const item of orderAction.items || []) {
-              const existing = newCart.find(
+              // اول توی سبد AI چک کن
+              const existingInCart = newCart.find(
                 (c) => c.menuItemId === item.menuItemId,
               );
-              if (existing) existing.quantity = item.quantity;
+              if (existingInCart) {
+                existingInCart.quantity = item.quantity;
+              } else {
+                // اگه توی سبد نبود، از آیتم‌های سفارش DB بردار و بذار توی سبد
+                const existingInOrder = existingOrderItems.find(
+                  (i: any) => i.menuItemId === item.menuItemId,
+                );
+                if (existingInOrder) {
+                  const menuItem = availableItems.find(
+                    (m) => m.id === item.menuItemId,
+                  );
+                  if (menuItem && item.quantity > 0) {
+                    newCart.push({
+                      menuItemId: menuItem.id,
+                      name: menuItem.name,
+                      price: menuItem.price,
+                      quantity: item.quantity,
+                    });
+                  }
+                }
+              }
             }
             newCart = newCart.filter((c) => c.quantity > 0);
             break;
@@ -377,13 +479,16 @@ ${menuContext}
                 (s, c) => s + Number(c.price) * c.quantity,
                 0,
               );
-              const newStatus = "pending";
+              const newIsAboveThreshold = totalAmount >= PAYMENT_THRESHOLD;
 
-              const paymentStatus =
-                totalAmount >= PAYMENT_THRESHOLD ? "pending" : "not_required";
+              // بالای ۵۰۰: منتظر پرداخت صندوق → paymentStatus: pending
+              // زیر ۵۰۰: نیاز به پرداخت نداره → paymentStatus: not_required
+              const paymentStatus = newIsAboveThreshold
+                ? "pending"
+                : "not_required";
 
               if (activeOrderId && !isLocked) {
-                // آپدیت سفارش pending
+                // آپدیت سفارش موجود
                 await db
                   .delete(orderItems)
                   .where(eq(orderItems.orderId, activeOrderId));
@@ -401,7 +506,7 @@ ${menuContext}
                   .update(orders)
                   .set({
                     totalAmount: totalAmount.toString(),
-                    status: newStatus as any,
+                    status: "pending" as any,
                     paymentStatus,
                     updatedAt: new Date(),
                   })
@@ -470,7 +575,6 @@ ${menuContext}
                 );
                 orderId = order.id;
 
-                // emit به پنل ادمین
                 const io = (global as any).io;
                 if (io) {
                   const fullOrder = await db.query.orders.findFirst({
@@ -525,7 +629,7 @@ ${menuContext}
       )[0];
     }
 
-    // ─── ۸. Emit آپدیت سفارش به پنل ادمین ───
+    // ─── ۸. Emit آپدیت ───
     if (orderSubmitted || orderAction) {
       const io = (global as any).io;
       if (io && orderId) {
@@ -557,6 +661,8 @@ ${menuContext}
             status: activeOrderStatus,
             items: existingOrderItems,
             isLocked,
+            lockReason,
+            isAboveThreshold,
           }
         : null,
     };
