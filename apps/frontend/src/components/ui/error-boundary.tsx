@@ -26,7 +26,7 @@ export class AppErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         this.props.fallback ?? (
-          <div className="flex flex-col items-center justify-center p-8 text-center">
+          <div className="flex flex-col  items-center justify-center p-8 text-center">
             <p className="text-red-500 font-medium mb-2">مشکلی پیش آمد</p>
             <p className="text-sm text-gray-500">{this.state.error?.message}</p>
             <button

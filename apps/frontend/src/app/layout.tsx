@@ -4,7 +4,7 @@ import { vazir } from '../fonts'
 import { Providers } from './providers'
 
 export const metadata: Metadata = {
-  title: 'پنل مدیریت رستوران',
+  title: '',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

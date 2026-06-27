@@ -123,7 +123,7 @@ export default function OrdersPage() {
 
   return (
     <AppErrorBoundary>
-      <div className="p-6 space-y-4">
+      <div className="p-6 space-y-4 ">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-medium text-gray-900">سفارشات</h1>
@@ -139,7 +139,7 @@ export default function OrdersPage() {
         </div>
 
         {/* فیلتر */}
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="flex flex-wrap gap-2 overflow-x-auto pb-1">
           {[
             { value: "active", label: "فعال" },
             { value: "all", label: "همه" },
@@ -173,7 +173,7 @@ export default function OrdersPage() {
             <p className="text-sm">سفارشی وجود ندارد</p>
           </div>
         ) : (
-          <div className="grid gap-3">
+          <div className="grid  gap-3">
             {displayOrders.map((order: Order) => (
               <div
                 key={order.id}

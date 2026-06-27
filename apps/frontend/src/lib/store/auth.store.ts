@@ -10,6 +10,7 @@ interface User {
   isActive: boolean
   avatar?: string
   tenantSlug?: string
+  plan : string
 }
 
 interface AuthStore {
