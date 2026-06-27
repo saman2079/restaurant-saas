@@ -41,33 +41,32 @@ io.on("connection", (socket) => {
   console.log("🔌 Socket متصل:", socket.id);
 
   socket.on("join-tenant", async (tenantIdOrSlug: string) => {
-    // اگه UUID بود مستقیم join کن، اگه slug بود از دیتابیس بگیر
     const isUUID = /^[0-9a-f-]{36}$/.test(tenantIdOrSlug);
 
-    if (isUUID) {
-      socket.join(`tenant:${tenantIdOrSlug}`);
-      console.log(`✅ join-tenant (id): ${tenantIdOrSlug}`);
-    } else {
-      // slug هست، از Redis یا DB بگیر
+    let tenantId = tenantIdOrSlug;
+
+    if (!isUUID) {
       try {
         const { db } = await import("./config/database");
         const { tenants } = await import("./db/schema");
         const { eq } = await import("drizzle-orm");
+
         const [tenant] = await db
           .select({ id: tenants.id })
           .from(tenants)
           .where(eq(tenants.slug, tenantIdOrSlug));
 
-        if (tenant) {
-          socket.join(`tenant:${tenant.id}`);
-          console.log(
-            `✅ join-tenant (slug→id): ${tenantIdOrSlug} → ${tenant.id}`,
-          );
-        }
+        if (!tenant) return;
+
+        tenantId = tenant.id;
       } catch (e) {
         console.error("join-tenant error:", e);
+        return;
       }
     }
+
+    socket.join(`tenant:${tenantId}`);
+    console.log(`✅ joined tenant:${tenantId}`);
   });
 
   socket.on("join-kitchen", (tenantId: string) => {
