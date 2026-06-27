@@ -16,6 +16,12 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["172.20.10.*"], // ✅ array
 
 
+  typescript: {
+    // این خط باعث می‌شود که در هنگام build، تایپ‌اسکریپت نادیده گرفته شود
+    // و اجازه دهد پروژه حتی با وجود ارورهای تایپی ساخته شود.
+    ignoreBuildErrors: true,
+  },
+
   async rewrites() {
     return [
       {

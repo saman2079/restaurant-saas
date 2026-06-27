@@ -1,25 +1,25 @@
-import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 interface User {
-  id: string
-  tenantId: string | null
-  name: string
-  email: string
-  role: string
-  isActive: boolean
-  avatar?: string
-  tenantSlug?: string
-  plan : string
+  id: string;
+  tenantId: string | null;
+  name: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  avatar?: string;
+  tenantSlug?: string;
+  plan?: string;
 }
 
 interface AuthStore {
-  user: User | null
-  token: string | null
-  _hasHydrated: boolean
-  setAuth: (user: User, token: string) => void
-  clearAuth: () => void
-  setHasHydrated: (val: boolean) => void
+  user: User | null;
+  token: string | null;
+  _hasHydrated: boolean;
+  setAuth: (user: User, token: string) => void;
+  clearAuth: () => void;
+  setHasHydrated: (val: boolean) => void;
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -30,23 +30,23 @@ export const useAuthStore = create<AuthStore>()(
       _hasHydrated: false,
 
       setAuth: (user, token) => {
-        localStorage.setItem('token', token)
-        set({ user, token })
+        localStorage.setItem("token", token);
+        set({ user, token });
       },
 
       clearAuth: () => {
-        localStorage.removeItem('token')
-        set({ user: null, token: null })
+        localStorage.removeItem("token");
+        set({ user: null, token: null });
       },
 
       setHasHydrated: (val) => set({ _hasHydrated: val }),
     }),
     {
-      name: 'auth-storage',
+      name: "auth-storage",
       storage: createJSONStorage(() => localStorage),
       onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true)
+        state?.setHasHydrated(true);
       },
-    }
-  )
-)
+    },
+  ),
+);
