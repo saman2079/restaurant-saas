@@ -60,7 +60,7 @@ export default function AnalyticsPage() {
                 onClick={() => setDays(d)}
                 className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
                   days === d
-                    ? 'bg-orange-500 text-white'
+                    ? 'bg-[#2563eb] text-white'
                     : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
                 }`}
               >
@@ -104,7 +104,7 @@ export default function AnalyticsPage() {
                     'درآمد'
                   ]}
                 />
-                <Line type="monotone" dataKey="revenue" stroke="#FF6B35" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="revenue" stroke="#2563eb" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -116,11 +116,11 @@ export default function AnalyticsPage() {
             <div className="bg-white rounded-xl border border-gray-100 p-4">
               <h2 className="text-sm font-medium text-gray-900 mb-4">پرفروش‌ترین آیتم‌ها</h2>
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={topItems} layout="vertical">
-                  <XAxis type="number" tick={{ fontSize: 10 }} />
+                <BarChart  data={topItems} layout="vertical">
+                  <XAxis  type="number" tick={{ fontSize: 10 }} />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={80} />
                   <Tooltip formatter={(v: any) => [v + ' عدد', 'تعداد']} />
-                  <Bar dataKey="totalQuantity" fill="#FF6B35" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="totalQuantity" fill="#2563eb" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -154,7 +154,7 @@ export default function AnalyticsPage() {
                   setQuestion(q)
                   aiMutation.mutate(q)
                 }}
-                className="text-xs bg-orange-50 text-orange-600 px-3 py-1.5 rounded-full hover:bg-orange-100 transition-colors"
+                className="text-xs bg-blue-50 text-[#2563eb] px-3 py-1.5 rounded-full hover:bg-orange-100 transition-colors"
               >
                 {q}
               </button>

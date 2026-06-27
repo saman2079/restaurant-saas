@@ -138,7 +138,7 @@ function ReceiptModal({
               💳 دریافت وجه
             </Button>
           ) : (
-            <Button size="sm" onClick={onConfirmClose} className="flex-1">
+            <Button variant="danger" size="sm" onClick={onConfirmClose} className="flex-1">
               ✅ بستن میز
             </Button>
           )}
@@ -217,14 +217,14 @@ export default function CashierPage() {
                   <p className="text-xs text-gray-500">
                     {table.orderCount} سفارش
                   </p>
-                  <p className="text-base font-bold text-orange-500">
+                  <p className="text-base font-bold text-[#2563eb]">
                     {formatPrice(table.totalAmount)}
                   </p>
                 </div>
 
                 <button
                   onClick={() => setSelectedTable(table.tableNumber)}
-                  className="w-full text-xs bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 transition-colors"
+                  className="w-full text-xs bg-[#2563eb] text-white py-2 rounded-lg hover:bg-[#2563eb] transition-colors"
                 >
                   {table.orders.some((o) => o.paymentStatus === "pending")
                     ? "💳 دریافت وجه"

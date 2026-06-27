@@ -132,7 +132,7 @@ export default function OrdersPage() {
             />
           </div>
           {activeOrders.length > 0 && (
-            <span className="bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+            <span className="bg-[#2563eb] text-white text-xs px-2 py-1 rounded-full">
               {activeOrders.length} فعال
             </span>
           )}
@@ -153,7 +153,7 @@ export default function OrdersPage() {
               onClick={() => setFilter(f.value)}
               className={`whitespace-nowrap px-3 py-1.5 rounded-full text-sm transition-colors ${
                 filter === f.value
-                  ? "bg-orange-500 text-white"
+                  ? "bg-[#2563eb] text-white shadow-lg shadow-blue-100/50"
                   : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
               }`}
             >
@@ -173,7 +173,7 @@ export default function OrdersPage() {
             <p className="text-sm">سفارشی وجود ندارد</p>
           </div>
         ) : (
-          <div className="grid  gap-3">
+          <div className="grid  gap-3 ">
             {displayOrders.map((order: Order) => (
               <div
                 key={order.id}
@@ -229,7 +229,7 @@ export default function OrdersPage() {
                           })
                         }
                         disabled={statusMutation.isPending}
-                        className="text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
+                        className="text-xs bg-[#2563eb] text-white px-3 py-1.5 rounded-lg hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
                       >
                         {STATUS_LABEL[order.status]}
                       </button>

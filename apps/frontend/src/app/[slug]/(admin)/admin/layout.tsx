@@ -84,7 +84,7 @@ export default function AdminLayout({
       {/* Main */}
       <div className="flex-1 flex flex-col">
         {/* topbar فقط موبایل */}
-        <div className="lg:hidden flex items-center justify-between p-3 bg-white border-b">
+        <div className="lg:hidden flex items-center justify-between p-3 bg-[#f6f7fb] border-b">
           <button onClick={() => setSidebarOpen(true)} className="text-2xl">
             ☰
           </button>
@@ -92,7 +92,7 @@ export default function AdminLayout({
           <div className="text-sm font-medium">{slug}</div>
         </div>
 
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main className="flex-1 overflow-auto bg-[#f6f7fb]">{children}</main>
       </div>
     </div>
   );

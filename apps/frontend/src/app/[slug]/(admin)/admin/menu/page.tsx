@@ -10,7 +10,6 @@ import { ImageUpload } from "@/components/ui/image-upload";
 import { AppErrorBoundary } from "@/components/ui/error-boundary";
 import { MenuItem, Category } from "@/types";
 import toast from "react-hot-toast";
-import Image from "next/image";
 
 function ItemModal({
   item,
@@ -307,7 +306,7 @@ export default function MenuPage() {
             onClick={() => setActiveCategory("all")}
             className={`flex-shrink-0 min-w-[80px] p-3 rounded-xl border-2 cursor-pointer transition-all ${
               activeCategory === "all"
-                ? "border-orange-500 bg-orange-50"
+                ? "border-blue-500 bg-white-50"
                 : "border-gray-200 bg-white hover:border-gray-300"
             }`}
           >
@@ -325,7 +324,7 @@ export default function MenuPage() {
               key={cat.id}
               className={`relative flex-shrink-0 w-28 p-3 rounded-xl border-2 cursor-pointer transition-all ${
                 activeCategory === cat.id
-                  ? "border-orange-500 bg-orange-50"
+                  ? "border-blue-500 bg-orange-50"
                   : "border-gray-200 bg-white hover:border-gray-300"
               }`}
               onClick={() => setActiveCategory(cat.id)}

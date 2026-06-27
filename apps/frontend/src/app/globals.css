@@ -1,9 +1,31 @@
 @import "tailwindcss";
 
+
 @theme {
   --font-sans: var(--font-vazir);
 }
 
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.6) transparent;
+}
+
+/* Chrome / Edge / Safari */
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.45); /* gray */
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.7);
 }

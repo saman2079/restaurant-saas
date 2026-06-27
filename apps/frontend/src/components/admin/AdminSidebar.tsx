@@ -100,23 +100,24 @@ export default function AdminSidebar({
     exact ? pathname === href : pathname.startsWith(href);
 
   return (
-    <aside className="flex h-screen w-56 flex-col border-l border-gray-100 bg-white">
+    <aside
+      className="flex h-screen w-56 flex-col border-l border-gray-100 shadow-md
+ bg-[#f6f7fb]"
+    >
       <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500 text-sm">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2563eb] text-sm">
           🍽️
         </div>
 
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-gray-900">
-            {slug}
-          </p>
+          <p className="truncate text-sm font-medium text-gray-900">{slug}</p>
 
           <p className="text-xs text-gray-400">
             {roleLabels[user.role] || user.role}
           </p>
 
           {userPlan && (
-            <p className="text-[10px] text-orange-500 mt-1">
+            <p className="text-[10px] text-[#2563eb] mt-1">
               {userPlan.toUpperCase()}
             </p>
           )}
@@ -131,8 +132,8 @@ export default function AdminSidebar({
             className={cn(
               "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
               isActive(item.href, item.exact)
-                ? "bg-orange-50 text-orange-600 font-medium"
-                : "text-gray-600 hover:bg-gray-50"
+                ? "bg-orange-50 text-[#2563eb] font-medium"
+                : " hover:bg-orange-50",
             )}
           >
             <span className="text-base">{item.icon}</span>
