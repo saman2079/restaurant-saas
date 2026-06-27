@@ -232,8 +232,17 @@ export const aiService = {
           .join("\n")
       : "بدون سفارش فعال";
 
+    const canEdit =
+      !activeOrderId ||
+      activeOrderStatus === "pending" ||
+      (activeOrderStatus === "confirmed" && !isLocked);
+
     const tableContext = tableNumber
-      ? `میز ${tableNumber} | ${isLocked ? `🔒 سفارش قفل شده (${activeOrderStatus}) - فقط آیتم جدید میشه اضافه کرد` : "✏️ قابل ویرایش"}`
+      ? `میز ${tableNumber} | ${
+          canEdit
+            ? "✏️ سفارش قبل از پرداخت قابل ویرایش است"
+            : `🔒 سفارش قفل شده (${activeOrderStatus}) - فقط آیتم جدید می‌توان اضافه کرد`
+        }`
       : "⚠️ بدون میز - فقط نمایش منو";
 
     const SYSTEM_PROMPT = `تو گارسون هوشمند رستوران "${tenant?.name || "رستوران"}" هستی. کوتاه، مودب و دقیق جواب بده.
@@ -246,8 +255,11 @@ export const aiService = {
 قوانین سفت:
 1. ${!tableNumber ? "هیچ سفارشی ثبت نکن - فقط منو نشون بده" : "برای این میز سفارش ثبت کن"}
 2. فقط از IDهای موجود در منو استفاده کن
-3. ${isLocked ? `سفارش قفل است - فقط add_items مجاز است` : "همه عملیات مجاز"}
-4. قبل از checkout، آیتم‌ها رو خلاصه کن و تایید بگیر
+3. ${
+      canEdit
+        ? "اگر سفارش هنوز پرداخت نشده است، add_items ،remove_items و update_quantity همگی مجاز هستند."
+        : "اگر سفارش وارد آشپزخانه شده است فقط add_items مجاز است."
+    }4. قبل از checkout، آیتم‌ها رو خلاصه کن و تایید بگیر
 5. فقط وقتی checkout موفق بود بگو "ثبت شد" - اگه ثبت نشد هرگز این رو نگو
 6. وقتی مشتری میگه "منو بده" یا "چی دارید" - کارت‌های منو نمایش داده میشه، فقط بگو "منو رو می‌بینید"
 

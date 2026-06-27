@@ -85,6 +85,7 @@ export interface Order {
   items: OrderItem[]
   createdAt: string
   updatedAt: string
+  paymentStatus: string
 }
 
 export interface ApiResponse<T> {

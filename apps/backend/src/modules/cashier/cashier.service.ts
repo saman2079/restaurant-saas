@@ -25,6 +25,7 @@ export const cashierService = {
       .update(orders)
       .set({
         paidAt: new Date(),
+        paymentStatus: "paid", // اضافه کن
         status: "confirmed",
         updatedAt: new Date(),
       })
@@ -52,7 +53,7 @@ export const cashierService = {
   // همه میزهای فعال (سفارش دارن و پرداخت نشدن)
   async getActiveTables(tenantId: string) {
     const activeOrders = await db.query.orders.findMany({
-      where: and(eq(orders.tenantId, tenantId), isNull(orders.paidAt)),
+      where: and(eq(orders.tenantId, tenantId), isNull(orders.completedAt)),
       with: { items: true },
       orderBy: orders.tableNumber,
     });
@@ -103,7 +104,7 @@ export const cashierService = {
       where: and(
         eq(orders.tenantId, tenantId),
         eq(orders.tableNumber, tableNumber),
-        isNull(orders.paidAt),
+        isNull(orders.completedAt),
       ),
       with: { items: true },
     });
@@ -158,8 +159,8 @@ export const cashierService = {
         ),
       );
 
-    if (remain.some((o) => o.status !== "delivered")) {
-      throw new Error("هنوز سفارش‌های تحویل نشده وجود دارد");
+    if (remain.some((o) => !["delivered", "cancelled"].includes(o.status))) {
+      throw new Error("هنوز سفارش‌های باز وجود دارد");
     }
 
     await db

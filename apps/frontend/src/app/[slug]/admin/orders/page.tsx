@@ -1,103 +1,125 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { orderApi } from '@/lib/api/order.api'
-import { AppErrorBoundary } from '@/components/ui/error-boundary'
-import { getOrderStatusColor, getOrderStatusLabel, formatPrice } from '@/lib/utils'
-import { Order } from '@/types'
-import { Button } from '@/components/ui/button'
-import { io, Socket } from 'socket.io-client'
-import toast from 'react-hot-toast'
-import { useAuthStore } from '@/lib/store/auth.store'
+import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { orderApi } from "@/lib/api/order.api";
+import { AppErrorBoundary } from "@/components/ui/error-boundary";
+import {
+  getOrderStatusColor,
+  getOrderStatusLabel,
+  formatPrice,
+} from "@/lib/utils";
+import { Order } from "@/types";
+import { Button } from "@/components/ui/button";
+import { io, Socket } from "socket.io-client";
+import toast from "react-hot-toast";
+import { useAuthStore } from "@/lib/store/auth.store";
 
 const STATUS_FLOW: Record<string, string> = {
-  pending: 'confirmed',
-  confirmed: 'preparing',
-  preparing: 'ready',
-  ready: 'delivered',
-}
+  pending: "confirmed",
+  confirmed: "preparing",
+  preparing: "ready",
+  ready: "delivered",
+};
 
 const STATUS_LABEL: Record<string, string> = {
-  pending: 'تأیید کن',
-  confirmed: 'شروع آماده‌سازی',
-  preparing: 'آماده شد',
-  ready: 'تحویل داده شد',
-}
+  pending: "تأیید کن",
+  confirmed: "شروع آماده‌سازی",
+  preparing: "آماده شد",
+  ready: "تحویل داده شد",
+};
 
 export default function OrdersPage() {
-  const { slug } = useParams<{ slug: string }>()
-  const qc = useQueryClient()
-  const { user } = useAuthStore()
-  const [filter, setFilter] = useState('active')
-  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null)
-  const [rejectionReason, setRejectionReason] = useState('')
-  const [isConnected, setIsConnected] = useState(false)
+  const { slug } = useParams<{ slug: string }>();
+  const qc = useQueryClient();
+  const { user } = useAuthStore();
+  const [filter, setFilter] = useState("active");
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [isConnected, setIsConnected] = useState(false);
 
   // Socket
   useEffect(() => {
-    if (!user?.tenantId) return
+    if (!user?.tenantId) return;
 
     const socket: Socket = io(
-      process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000',
-      { transports: ['websocket', 'polling'] }
-    )
+      process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000",
+      { transports: ["websocket", "polling"] },
+    );
 
-    socket.on('connect', () => {
-      setIsConnected(true)
-      socket.emit('join-tenant', user.tenantId)
-      console.log('✅ Socket متصل - join-tenant:', user.tenantId)
-    })
+    socket.on("connect", () => {
+      setIsConnected(true);
+      socket.emit("join-tenant", user.tenantId);
+      console.log("✅ Socket متصل - join-tenant:", user.tenantId);
+    });
 
-    socket.on('disconnect', () => {
-      setIsConnected(false)
-    })
+    socket.on("disconnect", () => {
+      setIsConnected(false);
+    });
 
-    socket.on('new-order', (order: Order) => {
-      console.log('📢 سفارش جدید:', order)
-      qc.invalidateQueries({ queryKey: ['orders', slug] })
-      toast('🔔 سفارش جدید از میز ' + (order.tableNumber ?? '-'), {
+    socket.on("new-order", (order: Order) => {
+      console.log("📢 سفارش جدید:", order);
+      qc.invalidateQueries({ queryKey: ["orders", slug] });
+      toast("🔔 سفارش جدید از میز " + (order.tableNumber ?? "-"), {
         duration: 5000,
-        style: { background: '#FF6B35', color: 'white' },
-      })
-    })
+        style: { background: "#FF6B35", color: "white" },
+      });
+    });
 
-    socket.on('order-updated', () => {
-      qc.invalidateQueries({ queryKey: ['orders', slug] })
-    })
+    socket.on("order-updated", () => {
+      qc.invalidateQueries({ queryKey: ["orders", slug] });
+    });
 
     return () => {
-      socket.disconnect()
-    }
-  }, [user?.tenantId, slug, qc])
+      socket.disconnect();
+    };
+  }, [user?.tenantId, slug, qc]);
 
   const { data: orders = [], isLoading } = useQuery({
-    queryKey: ['orders', slug, filter],
+    queryKey: ["orders", slug, filter],
     queryFn: () => orderApi.getAll(slug, { limit: 100 }),
     refetchInterval: 60000,
-  })
+  });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, status, rejectionReason }: {
-      id: string; status: string; rejectionReason?: string
+    mutationFn: ({
+      id,
+      status,
+      rejectionReason,
+    }: {
+      id: string;
+      status: string;
+      rejectionReason?: string;
     }) => orderApi.updateStatus(slug, id, status, rejectionReason),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['orders', slug] })
-      toast.success('وضعیت بروز شد')
+      qc.invalidateQueries({ queryKey: ["orders", slug] });
+      toast.success("وضعیت بروز شد");
     },
-    onError: () => toast.error('خطا'),
-  })
+    onError: () => toast.error("خطا"),
+  });
 
-  const activeOrders = (orders as Order[]).filter(
-    o => !['delivered', 'cancelled'].includes(o.status)
-  )
+  const activeOrders = (orders as Order[]).filter((o) => {
+    if (["delivered", "cancelled"].includes(o.status)) return false;
 
-  const displayOrders = filter === 'active'
-    ? activeOrders
-    : filter === 'all'
-    ? orders as Order[]
-    : (orders as Order[]).filter(o => o.status === filter)
+    // فقط سفارش هایی که پرداخت لازم ندارند
+    if (o.paymentStatus === "pending") return false;
+
+    return true;
+  });
+
+  const displayOrders =
+    filter === "active"
+      ? activeOrders
+      : filter === "all"
+        ? (orders as Order[])
+        : (orders as Order[]).filter((o) => {
+            if (o.status !== filter) return false;
+
+            if (o.paymentStatus === "pending") return false;
+
+            return true;
+          });
 
   return (
     <AppErrorBoundary>
@@ -105,7 +127,9 @@ export default function OrdersPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-medium text-gray-900">سفارشات</h1>
-            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-400'}`} />
+            <span
+              className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-400"}`}
+            />
           </div>
           {activeOrders.length > 0 && (
             <span className="bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
@@ -117,20 +141,20 @@ export default function OrdersPage() {
         {/* فیلتر */}
         <div className="flex gap-2 overflow-x-auto pb-1">
           {[
-            { value: 'active', label: 'فعال' },
-            { value: 'all', label: 'همه' },
-            { value: 'pending', label: 'در انتظار' },
-            { value: 'preparing', label: 'در حال آماده‌سازی' },
-            { value: 'delivered', label: 'تحویل شده' },
-            { value: 'cancelled', label: 'لغو شده' },
+            { value: "active", label: "فعال" },
+            { value: "all", label: "همه" },
+            { value: "pending", label: "در انتظار" },
+            { value: "preparing", label: "در حال آماده‌سازی" },
+            { value: "delivered", label: "تحویل شده" },
+            { value: "cancelled", label: "لغو شده" },
           ].map((f) => (
             <button
               key={f.value}
               onClick={() => setFilter(f.value)}
               className={`whitespace-nowrap px-3 py-1.5 rounded-full text-sm transition-colors ${
                 filter === f.value
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                  ? "bg-orange-500 text-white"
+                  : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
               }`}
             >
               {f.label}
@@ -151,12 +175,15 @@ export default function OrdersPage() {
         ) : (
           <div className="grid gap-3">
             {displayOrders.map((order: Order) => (
-              <div key={order.id} className="bg-white rounded-xl border border-gray-100 p-4">
+              <div
+                key={order.id}
+                className="bg-white rounded-xl border border-gray-100 p-4"
+              >
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-gray-900">
-                        میز {order.tableNumber ?? '-'}
+                        میز {order.tableNumber ?? "-"}
                       </p>
                       {order.isAiOrder && (
                         <span className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full">
@@ -165,10 +192,12 @@ export default function OrdersPage() {
                       )}
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {new Date(order.createdAt).toLocaleTimeString('fa-IR')}
+                      {new Date(order.createdAt).toLocaleTimeString("fa-IR")}
                     </p>
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full ${getOrderStatusColor(order.status)}`}>
+                  <span
+                    className={`text-xs px-2 py-1 rounded-full ${getOrderStatusColor(order.status)}`}
+                  >
                     {getOrderStatusLabel(order.status)}
                   </span>
                 </div>
@@ -176,8 +205,12 @@ export default function OrdersPage() {
                 <div className="space-y-1 mb-3">
                   {order.items?.map((item) => (
                     <div key={item.id} className="flex justify-between text-sm">
-                      <span className="text-gray-600">{item.quantity}× {item.name}</span>
-                      <span className="text-gray-500 text-xs">{formatPrice(item.subtotal)}</span>
+                      <span className="text-gray-600">
+                        {item.quantity}× {item.name}
+                      </span>
+                      <span className="text-gray-500 text-xs">
+                        {formatPrice(item.subtotal)}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -189,17 +222,19 @@ export default function OrdersPage() {
                   <div className="flex gap-2">
                     {STATUS_FLOW[order.status] && (
                       <button
-                        onClick={() => statusMutation.mutate({
-                          id: order.id,
-                          status: STATUS_FLOW[order.status]
-                        })}
+                        onClick={() =>
+                          statusMutation.mutate({
+                            id: order.id,
+                            status: STATUS_FLOW[order.status],
+                          })
+                        }
                         disabled={statusMutation.isPending}
                         className="text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
                       >
                         {STATUS_LABEL[order.status]}
                       </button>
                     )}
-                    {!['cancelled', 'delivered'].includes(order.status) && (
+                    {!["cancelled", "delivered"].includes(order.status) && (
                       <button
                         onClick={() => setCancelOrderId(order.id)}
                         className="text-xs text-red-500 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50"
@@ -219,8 +254,12 @@ export default function OrdersPage() {
       {cancelOrderId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
-            <h2 className="mb-1 text-base font-medium text-gray-900">دلیل لغو سفارش</h2>
-            <p className="text-xs text-gray-400 mb-3">این پیام به مشتری نمایش داده می‌شود</p>
+            <h2 className="mb-1 text-base font-medium text-gray-900">
+              دلیل لغو سفارش
+            </h2>
+            <p className="text-xs text-gray-400 mb-3">
+              این پیام به مشتری نمایش داده می‌شود
+            </p>
             <textarea
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
@@ -233,11 +272,12 @@ export default function OrdersPage() {
                 onClick={() => {
                   statusMutation.mutate({
                     id: cancelOrderId,
-                    status: 'cancelled',
-                    rejectionReason: rejectionReason || 'متأسفانه سفارش شما تایید نشد',
-                  })
-                  setCancelOrderId(null)
-                  setRejectionReason('')
+                    status: "cancelled",
+                    rejectionReason:
+                      rejectionReason || "متأسفانه سفارش شما تایید نشد",
+                  });
+                  setCancelOrderId(null);
+                  setRejectionReason("");
                 }}
                 className="flex-1"
               >
@@ -245,7 +285,10 @@ export default function OrdersPage() {
               </Button>
               <Button
                 variant="secondary"
-                onClick={() => { setCancelOrderId(null); setRejectionReason('') }}
+                onClick={() => {
+                  setCancelOrderId(null);
+                  setRejectionReason("");
+                }}
                 className="flex-1"
               >
                 انصراف
@@ -255,5 +298,5 @@ export default function OrdersPage() {
         </div>
       )}
     </AppErrorBoundary>
-  )
+  );
 }

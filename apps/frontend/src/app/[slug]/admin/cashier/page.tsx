@@ -54,8 +54,25 @@ function ReceiptModal({
         .get(`/${slug}/cashier/tables/${tableNumber}`)
         .then((r) => r.data.data),
   });
+  const qc = useQueryClient();
 
   const handlePrint = () => window.print();
+
+  const payMutation = useMutation({
+    mutationFn: (tableNumber: number) =>
+      apiClient
+        .post(`/${slug}/cashier/tables/${tableNumber}/pay`)
+        .then((r) => r.data),
+
+    onSuccess: (_, tableNumber) => {
+      qc.invalidateQueries({ queryKey: ["cashier-tables", slug] });
+      qc.invalidateQueries({ queryKey: ["table-detail", slug, tableNumber] });
+
+      toast.success("پرداخت انجام شد");
+    },
+
+    onError: () => toast.error("خطا در پرداخت"),
+  });
 
   if (isLoading)
     return (
@@ -112,9 +129,19 @@ function ReceiptModal({
           >
             🖨️ پرینت
           </Button>
-          <Button size="sm" onClick={onConfirmClose} className="flex-1">
-            ✅ بستن میز
-          </Button>
+          {data?.orders?.some((o: any) => o.paymentStatus === "pending") ? (
+            <Button
+              size="sm"
+              onClick={() => payMutation.mutate(tableNumber)}
+              className="flex-1"
+            >
+              💳 دریافت وجه
+            </Button>
+          ) : (
+            <Button size="sm" onClick={onConfirmClose} className="flex-1">
+              ✅ بستن میز
+            </Button>
+          )}
           <Button variant="secondary" size="sm" onClick={onClose}>
             انصراف
           </Button>
@@ -199,6 +226,9 @@ export default function CashierPage() {
                   onClick={() => setSelectedTable(table.tableNumber)}
                   className="w-full text-xs bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 transition-colors"
                 >
+                  {table.orders.some((o) => o.paymentStatus === "pending")
+                    ? "💳 دریافت وجه"
+                    : "🧾 مشاهده"}{" "}
                   {table.status === "awaiting_payment"
                     ? "💳 دریافت وجه"
                     : table.status === "confirmed"
