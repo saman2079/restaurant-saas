@@ -76,8 +76,6 @@ export default function Invoice({ orderId, slug, onDone }: Props) {
       setStatus(data.status);
       if (data.rejectionReason) setRejectionReason(data.rejectionReason);
 
-      // وقتی تموم شد یا لغو شد - orderId پاک میشه
-      // ولی روی صفحه هنوز نشون میده - صفحه عوض کردن باعث میشه برگرده به cart
       if (data.status === "delivered" || data.status === "cancelled") {
         localStorage.removeItem(`current-order-${slug}`);
       }
@@ -122,7 +120,6 @@ export default function Invoice({ orderId, slug, onDone }: Props) {
         سفارش شما ثبت شد!
       </h1>
 
-      {/* وضعیت */}
       <div
         className="flex items-center gap-2 px-5 py-2.5 rounded-full mb-6 text-[14px] font-medium"
         style={{ backgroundColor: info.bg, color: info.color }}

@@ -97,7 +97,7 @@ export default function OrdersList({ onOrderPlaced }: Props) {
     0,
   );
   const serviceFee = items.length > 0 ? 70000 : 0;
-  const total = itemsTotal + serviceFee;
+  const total = itemsTotal;
 
   return (
     <div className="w-full" dir="rtl">

@@ -22,8 +22,6 @@ export default function OrdersClient() {
     setOrderId(id);
   };
 
-  // وقتی سفارش تموم شد یا لغو شد - فقط orderId رو پاک کن
-  // صفحه بعدی که اومدن اینجا، cart خالی میبینن
   const handleOrderDone = () => {
     localStorage.removeItem(`current-order-${slug}`);
     setOrderId(null);
