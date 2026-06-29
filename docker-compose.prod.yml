@@ -39,9 +39,7 @@ services:
       - app-network
 
   backend:
-    build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
+    image: restaurant-saas-backend:latest
 
     container_name: restaurant_backend
 
@@ -72,9 +70,7 @@ services:
       - app-network
 
   frontend:
-    build:
-      context: ./apps/frontend
-      dockerfile: Dockerfile
+    image: restaurant-saas-frontend:latest
 
     container_name: restaurant_frontend
 

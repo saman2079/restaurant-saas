@@ -2,9 +2,6 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# npm mirror
-RUN npm config set registry https://registry.npm.chabokan.net
-
 COPY package*.json ./
 
 RUN npm ci
@@ -12,7 +9,6 @@ RUN npm ci
 COPY . .
 
 RUN npm run build
-
 
 FROM node:20-alpine AS runner
 
@@ -26,4 +22,4 @@ COPY --from=builder /app/public ./public
 
 EXPOSE 3000
 
-CMD ["node","server.js"]
+CMD ["node", "server.js"]
