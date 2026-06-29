@@ -2,7 +2,8 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-RUN npm config set registry https://npm.arvancloud.ir
+# npm mirror
+RUN npm config set registry https://registry.npm.chabokan.net
 
 COPY package*.json ./
 
@@ -19,7 +20,8 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-RUN npm config set registry https://npm.arvancloud.ir
+# npm mirror
+RUN npm config set registry https://registry.npm.chabokan.net
 
 COPY package*.json ./
 
@@ -33,4 +35,4 @@ RUN mkdir -p uploads
 
 EXPOSE 4000
 
-CMD ["npm", "run", "start"]
+CMD ["npm","run","start"]

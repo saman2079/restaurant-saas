@@ -2,7 +2,8 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-RUN npm config set registry https://npm.arvancloud.ir
+# npm mirror
+RUN npm config set registry https://registry.npm.chabokan.net
 
 COPY package*.json ./
 
@@ -25,4 +26,4 @@ COPY --from=builder /app/public ./public
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["node","server.js"]
