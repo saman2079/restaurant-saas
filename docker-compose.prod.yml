@@ -39,6 +39,10 @@ services:
       - app-network
 
   backend:
+
+    ports:
+      - "4000:4000"
+
     image: restaurant-saas-backend:latest
 
     container_name: restaurant_backend
@@ -69,7 +73,12 @@ services:
     networks:
       - app-network
 
+
   frontend:
+
+    ports:
+      - "3000:3000"
+
     image: restaurant-saas-frontend:latest
 
     container_name: restaurant_frontend
