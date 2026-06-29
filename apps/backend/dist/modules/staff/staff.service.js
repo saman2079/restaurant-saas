@@ -16,8 +16,8 @@ exports.staffService = {
             avatar: schema_1.users.avatar,
             lastLoginAt: schema_1.users.lastLoginAt,
             createdAt: schema_1.users.createdAt,
-        }).from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.tenantId, tenantId));
-        return result;
+        }).from(schema_1.users).where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.users.tenantId, tenantId)));
+        return result.filter(u => u.role !== 'owner');
     },
     async create(tenantId, data) {
         const existing = await database_1.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.email, data.email));
@@ -35,16 +35,28 @@ exports.staffService = {
         return userWithoutPassword;
     },
     async update(id, tenantId, data) {
+        const updateData = { updatedAt: new Date() };
+        if (data.name)
+            updateData.name = data.name;
+        if (data.role)
+            updateData.role = data.role;
+        if (typeof data.isActive === 'boolean')
+            updateData.isActive = data.isActive;
+        if (data.password)
+            updateData.password = await (0, hash_1.hashPassword)(data.password);
         const [updated] = await database_1.db.update(schema_1.users)
-            .set({ ...data, updatedAt: new Date() })
+            .set(updateData)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.users.id, id), (0, drizzle_orm_1.eq)(schema_1.users.tenantId, tenantId)))
             .returning();
+        if (!updated)
+            throw new Error('کارمند پیدا نشد');
         const { password: _, ...userWithoutPassword } = updated;
         return userWithoutPassword;
     },
-    async delete(id, tenantId) {
-        await database_1.db.delete(schema_1.users)
+    async remove(id, tenantId) {
+        const result = await database_1.db.delete(schema_1.users)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.users.id, id), (0, drizzle_orm_1.eq)(schema_1.users.tenantId, tenantId)));
+        return result;
     },
 };
 //# sourceMappingURL=staff.service.js.map
