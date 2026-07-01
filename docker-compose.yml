@@ -72,8 +72,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://menuwai.ir/api
-      NEXT_PUBLIC_SOCKET_URL: http://localhost:4000/api
+      NEXT_PUBLIC_API_URL: http://backend:4000
+      INTERNAL_API_URL: http://backend:4000
     depends_on:
       - backend
     networks:

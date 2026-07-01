@@ -7,7 +7,7 @@ const getBaseUrl = () => {
   }
 
   // Server (SSR)
-  return process.env.INTERNAL_API_URL || "http://localhost:4000/api";
+  return process.env.INTERNAL_API_URL || "http://backend:4000";
 };
 
 function createClient(): AxiosInstance {
@@ -49,12 +49,21 @@ function createClient(): AxiosInstance {
 }
 
 export async function createServer(endpoint: string) {
-  const res = await fetch(`${getBaseUrl()}${endpoint}`, {
+  const url = `${getBaseUrl()}/api${endpoint}`;
+
+  console.log("URL:", url);
+
+  const res = await fetch(url, {
     cache: "no-store",
   });
 
+  console.log("STATUS:", res.status);
+
   if (!res.ok) {
-    throw new Error("Request Failed");
+    const text = await res.text();
+    console.log("BODY:", text);
+
+    throw new Error(`Request Failed ${res.status}`);
   }
 
   return res.json();
