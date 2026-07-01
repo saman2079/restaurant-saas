@@ -8,8 +8,9 @@ RUN npm ci
 
 COPY . .
 
-# فیکس نهایی - مستقیم از فایل bin استفاده کن
-RUN ./node_modules/.bin/tsc
+# فیکس اینجا
+ENV PATH=/app/node_modules/.bin:$PATH
+RUN npm run build
 
 FROM node:20-alpine AS runner
 
