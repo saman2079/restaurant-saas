@@ -1,5 +1,5 @@
-import  createserver, { apiClient } from './client'
 import { ApiResponse, Category, MenuItem } from '@/types'
+import { apiClient, createServer } from './client'
 
 export const menuApi = {
   getFullMenu: async (slug: string) => {
@@ -50,7 +50,7 @@ export const menuApi = {
   },
 
   getFullMenuPublic: async (slug : string) => {
-    const {data} = await createserver(`/${slug}/menu/full`)
+    const {data} = await createServer(`/${slug}/menu/full`)
     return data
   }
 

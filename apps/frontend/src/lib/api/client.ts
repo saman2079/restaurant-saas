@@ -1,11 +1,13 @@
 import axios, { AxiosError, AxiosInstance } from "axios";
 
 const getBaseUrl = () => {
+  // Browser
   if (typeof window !== "undefined") {
-    return "/api";
+    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
   }
 
-  return process.env.NEXT_PUBLIC_API_URL || "http://backend:4000/api";
+  // Server (SSR)
+  return process.env.INTERNAL_API_URL || "http://localhost:4000/api";
 };
 
 function createClient(): AxiosInstance {
@@ -34,11 +36,9 @@ function createClient(): AxiosInstance {
   client.interceptors.response.use(
     (response) => response,
     (error: AxiosError) => {
-      if (error.response?.status === 401) {
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("token");
-          window.location.href = "/login";
-        }
+      if (error.response?.status === 401 && typeof window !== "undefined") {
+        localStorage.removeItem("token");
+        window.location.href = "/login";
       }
 
       return Promise.reject(error);
@@ -48,7 +48,7 @@ function createClient(): AxiosInstance {
   return client;
 }
 
-export default async function createServer(endpoint: string) {
+export async function createServer(endpoint: string) {
   const res = await fetch(`${getBaseUrl()}${endpoint}`, {
     cache: "no-store",
   });
