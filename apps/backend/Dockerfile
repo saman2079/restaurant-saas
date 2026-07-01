@@ -4,7 +4,8 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm ci
+RUN npm config set registry https://package-mirror.liara.ir/repository/npm/ \
+    && npm ci
 
 COPY . .
 
@@ -18,7 +19,8 @@ ENV NODE_ENV=production
 
 COPY package*.json ./
 
-RUN npm ci --omit=dev
+RUN npm config set registry https://package-mirror.liara.ir/repository/npm/ \
+    && npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts

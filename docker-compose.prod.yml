@@ -43,7 +43,7 @@ services:
     ports:
       - "4000:4000"
 
-    image: restaurant-saas-backend:latest
+    image: saman2077/restaurant-saas-backend:latest
 
     container_name: restaurant_backend
 
@@ -79,7 +79,7 @@ services:
     ports:
       - "3000:3000"
 
-    image: restaurant-saas-frontend:latest
+    image: saman2077/restaurant-saas-frontend:latest
 
     container_name: restaurant_frontend
 
