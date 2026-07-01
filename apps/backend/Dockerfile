@@ -4,8 +4,15 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm config set registry https://package-mirror.liara.ir/repository/npm/ \
-    && npm ci
+RUN npm ci
+
+RUN echo "===== node_modules/.bin =====" \
+ && ls -la node_modules/.bin || true
+
+RUN echo "===== typescript =====" \
+ && ls -la node_modules/typescript || true
+
+RUN npm ls typescript || true
 
 COPY . .
 
@@ -19,8 +26,7 @@ ENV NODE_ENV=production
 
 COPY package*.json ./
 
-RUN npm config set registry https://package-mirror.liara.ir/repository/npm/ \
-    && npm ci --omit=dev
+RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
