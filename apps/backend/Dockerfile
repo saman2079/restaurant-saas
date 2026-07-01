@@ -8,7 +8,10 @@ RUN npm ci
 
 COPY . .
 
-RUN npm run build
+# فیکس اصلی اینجا:
+RUN npx tsc
+# یا
+# RUN ./node_modules/.bin/tsc
 
 FROM node:20-alpine AS runner
 
