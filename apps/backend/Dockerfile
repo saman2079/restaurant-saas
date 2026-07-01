@@ -6,14 +6,6 @@ COPY package*.json ./
 
 RUN npm ci
 
-RUN echo "===== node_modules/.bin =====" \
- && ls -la node_modules/.bin || true
-
-RUN echo "===== typescript =====" \
- && ls -la node_modules/typescript || true
-
-RUN npm ls typescript || true
-
 COPY . .
 
 RUN npm run build
